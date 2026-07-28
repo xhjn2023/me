@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // GitHub Pages 部署在 /me/ 子路径下
+  base: '/me/',
   plugins: [
     react(),
     VitePWA({
@@ -16,10 +18,11 @@ export default defineConfig({
         background_color: '#F0F7FF',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '/me/',
+        scope: '/me/',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' }
         ]
       },
       workbox: {
