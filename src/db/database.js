@@ -4,8 +4,19 @@ const SUPABASE_URL = 'https://cszkekdciqgimsvfgons.supabase.co'
 const SUPABASE_ANON_KEY = 'sb_publishable_EgAro7H2v76ZHWTbzeN0vA_SToYDLgx'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: false }
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
 })
+
+/** 获取当前登录用户 ID（数据访问层内部使用） */
+async function uid() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) throw new Error('未登录')
+  return session.user.id
+}
 
 export function todayStr() {
   const d = new Date()
@@ -63,27 +74,37 @@ function toDbRow(data) {
   return createdAt != null ? { ...rest, created_at: createdAt } : rest
 }
 
+/** 给数据附加 user_id 后返回（用于 insert） */
+async function withUid(data) {
+  const userId = await uid()
+  return { ...toDbRow(data), user_id: userId }
+}
+
 // ─── Tasks ───
 export const tasksApi = {
   async getByDate(date, category) {
-    let q = supabase.from('tasks').select('*').eq('date', date)
+    const userId = await uid()
+    let q = supabase.from('tasks').select('*').eq('user_id', userId).eq('date', date)
     if (category && category !== 'all') q = q.eq('category', category)
     const { data, error } = await q.order('done', { ascending: true }).order('time', { ascending: true })
     if (error) throw error
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('tasks').insert(toDbRow(data)).select().single()
+    const row = await withUid(data)
+    const { data: result, error } = await supabase.from('tasks').insert(row).select().single()
     if (error) throw error
-    return row
+    return result
   },
   async update(id, data) {
-    const { data: row, error } = await supabase.from('tasks').update(data).eq('id', id).select().single()
+    const userId = await uid()
+    const { data: row, error } = await supabase.from('tasks').update(data).eq('id', id).eq('user_id', userId).select().single()
     if (error) throw error
     return row
   },
   async delete(id) {
-    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    const userId = await uid()
+    const { error } = await supabase.from('tasks').delete().eq('id', id).eq('user_id', userId)
     if (error) throw error
   }
 }
@@ -91,24 +112,28 @@ export const tasksApi = {
 // ─── Courses ───
 export const coursesApi = {
   async getAll(category) {
-    let q = supabase.from('courses').select('*')
+    const userId = await uid()
+    let q = supabase.from('courses').select('*').eq('user_id', userId)
     if (category) q = q.eq('category', category)
     const { data, error } = await q.order('updated_at', { ascending: false })
     if (error) throw error
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('courses').insert(data).select().single()
+    const row = await withUid(data)
+    const { data: result, error } = await supabase.from('courses').insert(row).select().single()
     if (error) throw error
-    return row
+    return result
   },
   async update(id, data) {
-    const { data: row, error } = await supabase.from('courses').update(data).eq('id', id).select().single()
+    const userId = await uid()
+    const { data: row, error } = await supabase.from('courses').update(data).eq('id', id).eq('user_id', userId).select().single()
     if (error) throw error
     return row
   },
   async delete(id) {
-    const { error } = await supabase.from('courses').delete().eq('id', id)
+    const userId = await uid()
+    const { error } = await supabase.from('courses').delete().eq('id', id).eq('user_id', userId)
     if (error) throw error
   }
 }
@@ -116,66 +141,77 @@ export const coursesApi = {
 // ─── Reviews ───
 export const reviewsApi = {
   async getByDate(date) {
-    const { data, error } = await supabase.from('reviews').select('*').eq('date', date)
+    const userId = await uid()
+    const { data, error } = await supabase.from('reviews').select('*').eq('user_id', userId).eq('date', date)
     if (error) throw error
     return (data && data[0]) || null
   },
   async getAll() {
-    const { data, error } = await supabase.from('reviews').select('*').order('date', { ascending: false }).limit(30)
+    const userId = await uid()
+    const { data, error } = await supabase.from('reviews').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30)
     if (error) throw error
     return data || []
   },
   async upsert(data) {
-    const { data: row, error } = await supabase.from('reviews').upsert(data, { onConflict: 'date' }).select().single()
+    const userId = await uid()
+    const row = { ...toDbRow(data), user_id: userId }
+    const { data: result, error } = await supabase.from('reviews').upsert(row, { onConflict: 'user_id,date' }).select().single()
     if (error) throw error
-    return row
+    return result
   }
 }
 
 // ─── Study Records ───
 export const studyRecordsApi = {
   async getByDates(dates) {
-    const { data, error } = await supabase.from('study_records').select('*').in('date', dates)
+    const userId = await uid()
+    const { data, error } = await supabase.from('study_records').select('*').eq('user_id', userId).in('date', dates)
     if (error) throw error
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('study_records').insert(data).select().single()
+    const row = await withUid(data)
+    const { data: result, error } = await supabase.from('study_records').insert(row).select().single()
     if (error) throw error
-    return row
+    return result
   }
 }
 
 // ─── Books ───
 export const booksApi = {
   async getAll(category) {
-    let q = supabase.from('books').select('*')
+    const userId = await uid()
+    let q = supabase.from('books').select('*').eq('user_id', userId)
     if (category) q = q.eq('category', category)
     const { data, error } = await q
     if (error) throw error
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('books').insert(data).select().single()
+    const row = await withUid(data)
+    const { data: result, error } = await supabase.from('books').insert(row).select().single()
     if (error) throw error
-    return row
+    return result
   }
 }
 
 // ─── Life Records ───
 export const lifeRecordsApi = {
   async getByDate(date) {
-    const { data, error } = await supabase.from('life_records').select('*').eq('date', date).order('created_at', { ascending: false })
+    const userId = await uid()
+    const { data, error } = await supabase.from('life_records').select('*').eq('user_id', userId).eq('date', date).order('created_at', { ascending: false })
     if (error) throw error
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('life_records').insert(toDbRow(data)).select().single()
+    const row = await withUid(data)
+    const { data: result, error } = await supabase.from('life_records').insert(row).select().single()
     if (error) throw error
-    return row
+    return result
   },
   async delete(id) {
-    const { error } = await supabase.from('life_records').delete().eq('id', id)
+    const userId = await uid()
+    const { error } = await supabase.from('life_records').delete().eq('id', id).eq('user_id', userId)
     if (error) throw error
   }
 }
@@ -183,22 +219,26 @@ export const lifeRecordsApi = {
 // ─── Side Projects ───
 export const sideProjectsApi = {
   async getAll() {
-    const { data, error } = await supabase.from('side_projects').select('*').order('created_at', { ascending: false })
+    const userId = await uid()
+    const { data, error } = await supabase.from('side_projects').select('*').eq('user_id', userId).order('created_at', { ascending: false })
     if (error) throw error
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('side_projects').insert(toDbRow(data)).select().single()
+    const row = await withUid(data)
+    const { data: result, error } = await supabase.from('side_projects').insert(row).select().single()
     if (error) throw error
-    return row
+    return result
   },
   async update(id, data) {
-    const { data: row, error } = await supabase.from('side_projects').update(data).eq('id', id).select().single()
+    const userId = await uid()
+    const { data: row, error } = await supabase.from('side_projects').update(data).eq('id', id).eq('user_id', userId).select().single()
     if (error) throw error
     return row
   },
   async delete(id) {
-    const { error } = await supabase.from('side_projects').delete().eq('id', id)
+    const userId = await uid()
+    const { error } = await supabase.from('side_projects').delete().eq('id', id).eq('user_id', userId)
     if (error) throw error
   }
 }
@@ -206,36 +246,42 @@ export const sideProjectsApi = {
 // ─── Medicine State ───
 export const medicineStateApi = {
   async get() {
-    const { data, error } = await supabase.from('medicine_state').select('*').eq('id', 1).single()
-    if (error && error.code !== 'PGRST116') throw error
+    const userId = await uid()
+    const { data, error } = await supabase.from('medicine_state').select('*').eq('user_id', userId).maybeSingle()
+    if (error) throw error
     return data || null
   },
   async upsert(data) {
-    const { data: row, error } = await supabase
+    const userId = await uid()
+    const row = { ...data, user_id: userId }
+    const { data: result, error } = await supabase
       .from('medicine_state')
-      .upsert({ id: 1, ...data }, { onConflict: 'id' })
+      .upsert(row, { onConflict: 'user_id' })
       .select()
       .single()
     if (error) throw error
-    return row
+    return result
   }
 }
 
 // ─── Medicine Checkins ───
 export const medicineCheckinsApi = {
   async getAll() {
-    const { data, error } = await supabase.from('medicine_checkins').select('*')
+    const userId = await uid()
+    const { data, error } = await supabase.from('medicine_checkins').select('*').eq('user_id', userId)
     if (error) throw error
     const map = {}
     for (const row of data || []) map[row.date] = row.dose
     return map
   },
   async add(date, dose) {
-    const { error } = await supabase.from('medicine_checkins').upsert({ date, dose }, { onConflict: 'date' })
+    const userId = await uid()
+    const { error } = await supabase.from('medicine_checkins').upsert({ date, dose, user_id: userId }, { onConflict: 'user_id,date' })
     if (error) throw error
   },
   async remove(date) {
-    const { error } = await supabase.from('medicine_checkins').delete().eq('date', date)
+    const userId = await uid()
+    const { error } = await supabase.from('medicine_checkins').delete().eq('date', date).eq('user_id', userId)
     if (error) throw error
   }
 }
@@ -243,7 +289,8 @@ export const medicineCheckinsApi = {
 // ─── Medicine Bottles ───
 export const medicineBottlesApi = {
   async getAll() {
-    const { data, error } = await supabase.from('medicine_bottles').select('*').order('bottle_number', { ascending: true })
+    const userId = await uid()
+    const { data, error } = await supabase.from('medicine_bottles').select('*').eq('user_id', userId).order('bottle_number', { ascending: true })
     if (error) throw error
     return (data || []).map(b => ({
       bottleNumber: b.bottle_number,
@@ -253,19 +300,23 @@ export const medicineBottlesApi = {
     }))
   },
   async add(bottle) {
+    const userId = await uid()
     const { error } = await supabase.from('medicine_bottles').insert({
       bottle_number: bottle.bottleNumber,
       started_at: bottle.startedAt,
       finished_at: bottle.finishedAt,
-      total_pills: bottle.totalPills
+      total_pills: bottle.totalPills,
+      user_id: userId
     })
     if (error) throw error
   },
   async finish(bottleNumber) {
+    const userId = await uid()
     const { error } = await supabase
       .from('medicine_bottles')
       .update({ finished_at: todayStr() })
       .eq('bottle_number', bottleNumber)
+      .eq('user_id', userId)
       .is('finished_at', null)
     if (error) throw error
   }
@@ -274,7 +325,8 @@ export const medicineBottlesApi = {
 // ─── Medicine Logs ───
 export const medicineLogsApi = {
   async getAll() {
-    const { data, error } = await supabase.from('medicine_logs').select('*').order('timestamp', { ascending: false }).limit(200)
+    const userId = await uid()
+    const { data, error } = await supabase.from('medicine_logs').select('*').eq('user_id', userId).order('timestamp', { ascending: false }).limit(200)
     if (error) throw error
     return (data || []).map(l => ({
       id: String(l.id),
@@ -285,11 +337,13 @@ export const medicineLogsApi = {
     }))
   },
   async add(action, note = '') {
+    const userId = await uid()
     const { error } = await supabase.from('medicine_logs').insert({
       date: todayStr(),
       action,
       note,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      user_id: userId
     })
     if (error) throw error
   }

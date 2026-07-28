@@ -6,6 +6,8 @@ import Life from './pages/Life'
 import SideWork from './pages/SideWork'
 import Review from './pages/Review'
 import Medicine from './pages/Medicine'
+import Login from './pages/Login'
+import { getCurrentUser, onAuthStateChange, signOut } from './db/auth'
 import { initializeData } from './db/seed'
 
 const TABS = [
@@ -20,13 +22,61 @@ const TABS = [
 
 export default function App() {
   const [tab, setTab] = useState('dashboard')
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
+  // 初始化：获取当前登录状态 + 监听 auth 变化
   useEffect(() => {
-    initializeData().catch(console.error)
+    let unsub = () => {}
+    ;(async () => {
+      const currentUser = await getCurrentUser()
+      setUser(currentUser)
+      setAuthLoading(false)
+      unsub = onAuthStateChange((u) => {
+        setUser(u)
+      })
+    })()
+    return () => unsub()
   }, [])
+
+  // 登录后才初始化种子数据（为新用户）
+  useEffect(() => {
+    if (user) {
+      initializeData().catch(console.error)
+    }
+  }, [user])
+
+  // 加载中
+  if (authLoading) {
+    return (
+      <div className="app-bg min-h-screen flex items-center justify-center">
+        <div className="text-gray-400 text-sm">加载中...</div>
+      </div>
+    )
+  }
+
+  // 未登录：显示登录页
+  if (!user) {
+    return <Login />
+  }
 
   return (
     <div className="app-bg max-w-md mx-auto min-h-screen relative">
+      {/* 顶部用户栏 */}
+      <header className="flex items-center justify-end px-4 pt-3 pb-1">
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <span className="max-w-[140px] truncate">{user.email}</span>
+          <button
+            onClick={async () => {
+              try { await signOut() } catch (e) { console.error(e) }
+            }}
+            className="px-2 py-1 rounded-md bg-white/70 hover:bg-white text-gray-500 hover:text-red-500 transition btn-press"
+          >
+            退出
+          </button>
+        </div>
+      </header>
+
       <main className="min-h-screen">
         {tab === 'dashboard' && <Dashboard onNavigate={setTab} />}
         {tab === 'work' && <Work />}
