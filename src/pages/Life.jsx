@@ -3,27 +3,27 @@ import { lifeRecordsApi, todayStr } from '../db/database'
 import { useAsyncData } from '../hooks/useAsyncData'
 
 const TYPES = [
+  { key: '日记', icon: '📝', color: 'bg-amber-100 text-amber-600' },
   { key: '运动', icon: '🏃', color: 'bg-green-100 text-green-600' },
   { key: '饮食', icon: '🍎', color: 'bg-orange-100 text-orange-600' },
   { key: '睡眠', icon: '😴', color: 'bg-blue-100 text-blue-600' },
   { key: '健康', icon: '💊', color: 'bg-pink-100 text-pink-600' },
-  { key: '娱乐', icon: '🎮', color: 'bg-purple-100 text-purple-600' },
-  { key: '日记', icon: '📝', color: 'bg-amber-100 text-amber-600' }
+  { key: '娱乐', icon: '🎮', color: 'bg-purple-100 text-purple-600' }
 ]
 
 export default function Life() {
-  const today = todayStr()
+  const [selectedDate, setSelectedDate] = useState(todayStr())
   const [input, setInput] = useState('')
-  const [type, setType] = useState('运动')
+  const [type, setType] = useState('日记')
 
-  const { data: records, refresh } = useAsyncData(() => lifeRecordsApi.getByDate(today), [today])
+  const { data: records, refresh } = useAsyncData(() => lifeRecordsApi.getByDate(selectedDate), [selectedDate])
   const recordsList = records || []
 
   async function addRecord() {
     const text = input.trim()
     if (!text) return
     await lifeRecordsApi.add({
-      date: today,
+      date: selectedDate,
       type,
       content: text,
       createdAt: Date.now()
@@ -47,8 +47,19 @@ export default function Life() {
   return (
     <div className="animate-fade-in pb-24">
       <div className="bg-gradient-to-br from-emerald-500 to-green-500 p-5 text-white rounded-b-3xl">
-        <h1 className="text-xl font-bold">生活</h1>
-        <p className="text-sm text-white/80 mt-0.5">记录健康生活每一天</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">生活</h1>
+            <p className="text-sm text-white/80 mt-0.5">记录健康生活每一天</p>
+          </div>
+          <input
+            type="date"
+            value={selectedDate}
+            max={todayStr()}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="px-3 py-1.5 bg-white/20 rounded-full text-xs text-white backdrop-blur-sm focus:outline-none [color-scheme:light]"
+          />
+        </div>
       </div>
 
       <div className="px-4 mt-4">

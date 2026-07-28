@@ -10,8 +10,7 @@
     "dev:all": "concurrently \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview",
-    "stress-test": "node tests/stress-test.mjs",
-    "medicine-stress-test": "node tests/medicine-stress-test.mjs"
+    "stress-test": "node tests/stress-test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.9",

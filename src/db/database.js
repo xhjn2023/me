@@ -195,3 +195,95 @@ export const sideProjectsApi = {
     if (error) throw error
   }
 }
+
+// ─── Medicine State ───
+export const medicineStateApi = {
+  async get() {
+    const { data, error } = await supabase.from('medicine_state').select('*').eq('id', 1).single()
+    if (error && error.code !== 'PGRST116') throw error
+    return data || null
+  },
+  async upsert(data) {
+    const { data: row, error } = await supabase
+      .from('medicine_state')
+      .upsert({ id: 1, ...data }, { onConflict: 'id' })
+      .select()
+      .single()
+    if (error) throw error
+    return row
+  }
+}
+
+// ─── Medicine Checkins ───
+export const medicineCheckinsApi = {
+  async getAll() {
+    const { data, error } = await supabase.from('medicine_checkins').select('*')
+    if (error) throw error
+    const map = {}
+    for (const row of data || []) map[row.date] = row.dose
+    return map
+  },
+  async add(date, dose) {
+    const { error } = await supabase.from('medicine_checkins').upsert({ date, dose }, { onConflict: 'date' })
+    if (error) throw error
+  },
+  async remove(date) {
+    const { error } = await supabase.from('medicine_checkins').delete().eq('date', date)
+    if (error) throw error
+  }
+}
+
+// ─── Medicine Bottles ───
+export const medicineBottlesApi = {
+  async getAll() {
+    const { data, error } = await supabase.from('medicine_bottles').select('*').order('bottle_number', { ascending: true })
+    if (error) throw error
+    return (data || []).map(b => ({
+      bottleNumber: b.bottle_number,
+      startedAt: b.started_at,
+      finishedAt: b.finished_at,
+      totalPills: b.total_pills
+    }))
+  },
+  async add(bottle) {
+    const { error } = await supabase.from('medicine_bottles').insert({
+      bottle_number: bottle.bottleNumber,
+      started_at: bottle.startedAt,
+      finished_at: bottle.finishedAt,
+      total_pills: bottle.totalPills
+    })
+    if (error) throw error
+  },
+  async finish(bottleNumber) {
+    const { error } = await supabase
+      .from('medicine_bottles')
+      .update({ finished_at: todayStr() })
+      .eq('bottle_number', bottleNumber)
+      .is('finished_at', null)
+    if (error) throw error
+  }
+}
+
+// ─── Medicine Logs ───
+export const medicineLogsApi = {
+  async getAll() {
+    const { data, error } = await supabase.from('medicine_logs').select('*').order('timestamp', { ascending: false }).limit(200)
+    if (error) throw error
+    return (data || []).map(l => ({
+      id: String(l.id),
+      date: l.date,
+      action: l.action,
+      note: l.note || '',
+      timestamp: l.timestamp
+    }))
+  },
+  async add(action, note = '') {
+    const { error } = await supabase.from('medicine_logs').insert({
+      date: todayStr(),
+      action,
+      note,
+      timestamp: Date.now()
+    })
+    if (error) throw error
+  }
+}

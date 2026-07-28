@@ -11,35 +11,38 @@ const ACTION_LABELS = {
 }
 
 export default function Medicine() {
-  // ─── 状态：全部从 localStorage 读取 ───
-  const [state, setState] = useState(() => medicine.getState())
-  const [streak, setStreak] = useState(() => medicine.getStreak())
-  const [totalDays, setTotalDays] = useState(() => medicine.getTotalCheckinDays())
-  const [checkedToday, setCheckedToday] = useState(() => medicine.isCheckedToday())
-  const [logs, setLogs] = useState(() => medicine.getLogs())
-  const [bottles, setBottles] = useState(() => medicine.getBottles())
-  const [checkins, setCheckins] = useState(() => medicine.getCheckins())
+  const [loading, setLoading] = useState(true)
+  const [state, setState] = useState(null)
+  const [checkins, setCheckins] = useState({})
+  const [logs, setLogs] = useState([])
+  const [bottles, setBottles] = useState([])
 
-  const [tab, setTab] = useState('checkin') // checkin | bottles | logs
+  const [tab, setTab] = useState('checkin')
   const [showSettings, setShowSettings] = useState(false)
   const [showEditRemaining, setShowEditRemaining] = useState(false)
   const [toast, setToast] = useState(null)
 
-  // 统一刷新：从 store 重新拉取所有数据
-  const refreshAll = useCallback(() => {
-    setState(medicine.getState())
-    setStreak(medicine.getStreak())
-    setTotalDays(medicine.getTotalCheckinDays())
-    setCheckedToday(medicine.isCheckedToday())
-    setLogs(medicine.getLogs())
-    setBottles(medicine.getBottles())
-    setCheckins(medicine.getCheckins())
+  // 统一刷新：从 Supabase 重新拉取所有数据
+  const refreshAll = useCallback(async () => {
+    const [st, ck, lg, bt] = await Promise.all([
+      medicine.getState(),
+      medicine.getCheckins(),
+      medicine.getLogs(),
+      medicine.getBottles()
+    ])
+    setState(st)
+    setCheckins(ck)
+    setLogs(lg)
+    setBottles(bt)
+    setLoading(false)
   }, [])
 
-  // 首次进入初始化瓶次记录
+  // 首次进入初始化 + 加载数据
   useEffect(() => {
-    medicine.initMedicine()
-    refreshAll()
+    medicine.initMedicine().then(refreshAll).catch(err => {
+      console.error('用药模块加载失败:', err)
+      setLoading(false)
+    })
   }, [refreshAll])
 
   function showToast(msg) {
@@ -47,44 +50,68 @@ export default function Medicine() {
     setTimeout(() => setToast(null), 2200)
   }
 
-  function handleCheckin() {
-    const res = medicine.checkinToday()
+  async function handleCheckin() {
+    const res = await medicine.checkinToday()
     if (!res.ok) { showToast(res.reason); return }
-    refreshAll()
+    await refreshAll()
     showToast('打卡成功，记得吃药哦')
   }
 
-  function handleUncheckin() {
-    medicine.uncheckinToday()
-    refreshAll()
+  async function handleUncheckin() {
+    await medicine.uncheckinToday()
+    await refreshAll()
     showToast('已取消今日打卡')
   }
 
-  function handleSwitchBottle() {
+  async function handleSwitchBottle() {
+    if (!state) return
     if (!window.confirm(`确认第${state.bottleNumber}瓶已吃完，开启下一瓶？`)) return
-    medicine.switchToNextBottle()
-    refreshAll()
+    await medicine.switchToNextBottle()
+    await refreshAll()
     showToast(`已开启第${state.bottleNumber + 1}瓶`)
   }
 
-  // 派生值（依赖 checkedToday：打卡后会改变预计吃完日期）
-  const finishDate = useMemo(
-    () => {
-      const d = medicine.estimateFinishDate(state)
-      if (!d) return null
-      const dt = new Date(d)
-      return `${dt.getMonth() + 1}月${dt.getDate()}日`
-    },
-    [state, checkedToday]
-  )
+  // 派生值
+  const checkedToday = useMemo(() => {
+    const today = new Date()
+    const tz = today.getTimezoneOffset() * 60000
+    const todayKey = new Date(today - tz).toISOString().slice(0, 10)
+    return Boolean(checkins[todayKey])
+  }, [checkins])
+
+  const streak = useMemo(() => medicine.computeStreak(checkins), [checkins])
+  const totalDays = useMemo(() => Object.keys(checkins).length, [checkins])
+
+  const finishDate = useMemo(() => {
+    const d = medicine.estimateFinishDate(state, checkedToday)
+    if (!d) return null
+    const dt = new Date(d)
+    return `${dt.getMonth() + 1}月${dt.getDate()}日`
+  }, [state, checkedToday])
+
   const low = useMemo(() => medicine.isLowSupply(state), [state])
-  const progress = state.pillsPerBottle > 0
+  const progress = state && state.pillsPerBottle > 0
     ? Math.min(100, Math.round((state.remainingPills / state.pillsPerBottle) * 100))
     : 0
   const sortedCheckinDates = useMemo(
     () => Object.keys(checkins).sort((a, b) => (a < b ? 1 : -1)),
     [checkins]
   )
+
+  if (loading || !state) {
+    return (
+      <div className="animate-fade-in pb-24">
+        <div className="bg-gradient-to-br from-rose-400 to-pink-400 p-5 text-white rounded-b-3xl">
+          <h1 className="text-xl font-bold">用药提醒</h1>
+          <p className="text-sm text-white/85 mt-0.5">每日坚持，健康相伴</p>
+        </div>
+        <div className="text-center py-20 text-gray-400 text-sm">
+          <p className="text-3xl mb-2 animate-pulse">💊</p>
+          <p>加载中...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="animate-fade-in pb-24">
@@ -188,9 +215,9 @@ export default function Medicine() {
           {showSettings && (
             <SettingsPanel
               state={state}
-              onChange={patch => {
-                medicine.updateSettings(patch)
-                refreshAll()
+              onChange={async patch => {
+                await medicine.updateSettings(patch)
+                await refreshAll()
                 showToast('设置已保存')
               }}
             />
@@ -243,9 +270,9 @@ export default function Medicine() {
           current={state.remainingPills}
           max={9999}
           onClose={() => setShowEditRemaining(false)}
-          onSave={val => {
-            medicine.setRemainingPills(val)
-            refreshAll()
+          onSave={async val => {
+            await medicine.setRemainingPills(val)
+            await refreshAll()
             setShowEditRemaining(false)
             showToast('余量已更新')
           }}
