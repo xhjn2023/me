@@ -5,6 +5,7 @@ import Study from './pages/Study'
 import Life from './pages/Life'
 import SideWork from './pages/SideWork'
 import Review from './pages/Review'
+import Medicine from './pages/Medicine'
 import { initializeData } from './db/seed'
 
 const TABS = [
@@ -12,6 +13,7 @@ const TABS = [
   { key: 'work', label: '工作', icon: WorkIcon, badge: 9 },
   { key: 'study', label: '学习', icon: StudyIcon },
   { key: 'life', label: '生活', icon: LifeIcon },
+  { key: 'medicine', label: '用药', icon: PillIcon },
   { key: 'side', label: '副业', icon: RocketIcon },
   { key: 'review', label: '复盘', icon: NoteIcon }
 ]
@@ -30,6 +32,7 @@ export default function App() {
         {tab === 'work' && <Work />}
         {tab === 'study' && <Study />}
         {tab === 'life' && <Life />}
+        {tab === 'medicine' && <Medicine />}
         {tab === 'side' && <SideWork />}
         {tab === 'review' && <Review />}
       </main>
@@ -97,6 +100,15 @@ function LifeIcon({ active }) {
   return (
     <svg className="w-6 h-6" viewBox="0 0 24 24" fill={active ? '#6366f1' : 'none'} stroke={active ? '#6366f1' : '#9CA3AF'} strokeWidth="2">
       <path d="M12 22s-8-4.5-8-11.5A5.5 5.5 0 0112 5a5.5 5.5 0 018 5.5C20 17.5 12 22 12 22z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function PillIcon({ active }) {
+  return (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill={active ? '#6366f1' : 'none'} stroke={active ? '#6366f1' : '#9CA3AF'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.5 20.5a7 7 0 01-9.9-9.9l9.9-9.9a7 7 0 019.9 9.9z" />
+      <path d="M8.5 8.5l7 7" />
     </svg>
   )
 }
