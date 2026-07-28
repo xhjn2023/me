@@ -42,46 +42,9 @@ export default function Medicine() {
     refreshAll()
   }, [refreshAll])
 
-  // 每日提醒：每分钟检查一次时间，到点且未打卡则发通知
-  useEffect(() => {
-    function checkReminder() {
-      const s = medicine.getState()
-      const now = new Date()
-      const hh = String(now.getHours()).padStart(2, '0')
-      const mm = String(now.getMinutes()).padStart(2, '0')
-      if (`${hh}:${mm}` >= s.reminderTime && !medicine.isCheckedToday()) {
-        showNotification(s)
-      }
-    }
-    checkReminder()
-    const timer = setInterval(checkReminder, 60000)
-    return () => clearInterval(timer)
-  }, [])
-
   function showToast(msg) {
     setToast(msg)
     setTimeout(() => setToast(null), 2200)
-  }
-
-  function showNotification(s) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification('💊 该吃药啦', {
-          body: `第${s.bottleNumber}瓶 · 剩余${s.remainingPills}颗`,
-          tag: 'medicine-reminder'
-        })
-      } catch (e) { /* 忽略 */ }
-    }
-  }
-
-  function requestNotifyPermission() {
-    if (!('Notification' in window)) {
-      showToast('当前浏览器不支持通知')
-      return
-    }
-    Notification.requestPermission().then(p => {
-      showToast(p === 'granted' ? '已开启通知提醒' : '未开启通知权限')
-    })
   }
 
   function handleCheckin() {
@@ -119,17 +82,9 @@ export default function Medicine() {
     <div className="animate-fade-in pb-24">
       {/* 顶部标题区 */}
       <div className="bg-gradient-to-br from-rose-400 to-pink-400 p-5 text-white rounded-b-3xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">用药提醒</h1>
-            <p className="text-sm text-white/85 mt-0.5">每日坚持，健康相伴</p>
-          </div>
-          <button
-            onClick={requestNotifyPermission}
-            className="px-3 py-1.5 bg-white/20 rounded-full text-xs backdrop-blur-sm btn-press"
-          >
-            🔔 提醒
-          </button>
+        <div>
+          <h1 className="text-xl font-bold">用药提醒</h1>
+          <p className="text-sm text-white/85 mt-0.5">每日坚持，健康相伴</p>
         </div>
       </div>
 
@@ -297,7 +252,6 @@ function SettingsPanel({ state, onChange }) {
   const [pillsPerBottle, setPillsPerBottle] = useState(state.pillsPerBottle)
   const [dailyDose, setDailyDose] = useState(state.dailyDose)
   const [lowThreshold, setLowThreshold] = useState(state.lowThreshold)
-  const [reminderTime, setReminderTime] = useState(state.reminderTime)
 
   return (
     <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-fade-in">
@@ -328,17 +282,9 @@ function SettingsPanel({ state, onChange }) {
           className="w-20 px-2 py-1 bg-rose-50 rounded-lg text-sm text-right focus:outline-none focus:bg-rose-100"
         />
       </SettingRow>
-      <SettingRow label="每日提醒时间">
-        <input
-          type="time"
-          value={reminderTime}
-          onChange={e => setReminderTime(e.target.value)}
-          className="px-2 py-1 bg-rose-50 rounded-lg text-sm focus:outline-none focus:bg-rose-100"
-        />
-      </SettingRow>
       <button
         onClick={() =>
-          onChange({ pillsPerBottle, dailyDose, lowThreshold, reminderTime })
+          onChange({ pillsPerBottle, dailyDose, lowThreshold })
         }
         className="w-full py-2.5 bg-rose-400 text-white rounded-xl text-sm font-medium btn-press"
       >
