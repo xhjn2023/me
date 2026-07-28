@@ -1,4 +1,4 @@
-import { db, todayStr } from './database'
+import { tasksApi, coursesApi, booksApi, reviewsApi, studyRecordsApi, lifeRecordsApi, sideProjectsApi, todayStr } from './database'
 
 const SEED_DATA = {
   tasks: [
@@ -16,19 +16,15 @@ const SEED_DATA = {
     { title: '超市经营管理实战', instructor: '张经理', totalLessons: 45, currentLessons: 20, category: '超市经营', progress: 44, updatedAt: Date.now() },
     { title: '内心能量修炼', instructor: '陈导师', totalLessons: 20, currentLessons: 8, category: '内心能量', progress: 40, updatedAt: Date.now() }
   ],
-  reviews: [
-    { date: todayStr(), mood: 'happy', physical: 7.5, mental: 8.0, intellectual: 7.0, emotional: 8.5, completion: 87 },
-    { date: new Date(Date.now() - 86400000).toISOString().slice(0, 10), mood: 'good', physical: 7.0, mental: 7.5, intellectual: 6.5, emotional: 8.0, completion: 90 }
+  books: [
+    { title: '《人力资源管理》第15版', author: '加里·德斯勒', category: '人事专业', recommended: true },
+    { title: '《零售管理精要》', author: '迈克尔·利维', category: '超市经营', recommended: true },
+    { title: '《心流：最优体验心理学》', author: '米哈里·契克森米哈赖', category: '内心能量', recommended: true }
   ],
   studyRecords: [
     { date: todayStr(), duration: 90, category: '人事专业', createdAt: Date.now() },
     { date: todayStr(), duration: 60, category: '超市经营', createdAt: Date.now() - 3600000 },
     { date: new Date(Date.now() - 86400000).toISOString().slice(0, 10), duration: 120, category: '人事专业', createdAt: Date.now() - 86400000 }
-  ],
-  books: [
-    { title: '《人力资源管理》第15版', author: '加里·德斯勒', category: '人事专业', recommended: true },
-    { title: '《零售管理精要》', author: '迈克尔·利维', category: '超市经营', recommended: true },
-    { title: '《心流：最优体验心理学》', author: '米哈里·契克森米哈赖', category: '内心能量', recommended: true }
   ],
   lifeRecords: [
     { date: todayStr(), type: '运动', content: '跑步30分钟', createdAt: Date.now() },
@@ -41,52 +37,62 @@ const SEED_DATA = {
 }
 
 export async function initializeData() {
-  const existingCourses = await db.courses.count()
-  if (existingCourses === 0) {
+  try {
+    // 检查是否已有数据
+    const existingCourses = await coursesApi.getAll()
+    if (existingCourses.length > 0) {
+      console.log('✅ 数据库已有数据，跳过初始化')
+      return
+    }
+
+    console.log('🌱 开始初始化种子数据...')
+    const today = todayStr()
+
+    // 检查今日是否已有任务
+    const existingTasks = await tasksApi.getByDate(today)
+    if (existingTasks.length === 0) {
+      for (const task of SEED_DATA.tasks) {
+        await tasksApi.add({ ...task, date: today })
+      }
+    }
+
     for (const course of SEED_DATA.courses) {
-      await db.courses.add(course)
+      await coursesApi.add(course)
     }
-  }
 
-  const existingBooks = await db.books.count()
-  if (existingBooks === 0) {
     for (const book of SEED_DATA.books) {
-      await db.books.add(book)
+      await booksApi.add(book)
     }
-  }
 
-  const existingTasks = await db.tasks.where('date').equals(todayStr()).count()
-  if (existingTasks === 0) {
-    for (const task of SEED_DATA.tasks) {
-      await db.tasks.add({ ...task, date: todayStr() })
+    const existingReviews = await reviewsApi.getAll()
+    if (existingReviews.length === 0) {
+      await reviewsApi.upsert({ date: todayStr(), mood: 'happy', physical: 7.5, mental: 8.0, intellectual: 7.0, emotional: 8.5, completion: 43 })
+      await reviewsApi.upsert({ date: new Date(Date.now() - 86400000).toISOString().slice(0, 10), mood: 'good', physical: 7.0, mental: 7.5, intellectual: 6.5, emotional: 8.0, completion: 90 })
     }
-  }
 
-  const existingReviews = await db.reviews.count()
-  if (existingReviews === 0) {
-    for (const review of SEED_DATA.reviews) {
-      await db.reviews.add(review)
+    const existingStudyRecords = await studyRecordsApi.getByDates([today])
+    if (existingStudyRecords.length === 0) {
+      for (const record of SEED_DATA.studyRecords) {
+        await studyRecordsApi.add(record)
+      }
     }
-  }
 
-  const existingStudyRecords = await db.studyRecords.count()
-  if (existingStudyRecords === 0) {
-    for (const record of SEED_DATA.studyRecords) {
-      await db.studyRecords.add(record)
+    const existingLifeRecords = await lifeRecordsApi.getByDate(today)
+    if (existingLifeRecords.length === 0) {
+      for (const record of SEED_DATA.lifeRecords) {
+        await lifeRecordsApi.add(record)
+      }
     }
-  }
 
-  const existingLifeRecords = await db.lifeRecords.count()
-  if (existingLifeRecords === 0) {
-    for (const record of SEED_DATA.lifeRecords) {
-      await db.lifeRecords.add(record)
+    const existingSideProjects = await sideProjectsApi.getAll()
+    if (existingSideProjects.length === 0) {
+      for (const project of SEED_DATA.sideProjects) {
+        await sideProjectsApi.add(project)
+      }
     }
-  }
 
-  const existingSideProjects = await db.sideProjects.count()
-  if (existingSideProjects === 0) {
-    for (const project of SEED_DATA.sideProjects) {
-      await db.sideProjects.add(project)
-    }
+    console.log('✅ 种子数据初始化完成')
+  } catch (err) {
+    console.error('❌ 种子数据初始化失败:', err.message)
   }
 }

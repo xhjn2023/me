@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db, getStreakDays } from '../db/database'
-import { useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
+import { coursesApi, booksApi, studyRecordsApi, todayStr, getStreakDays } from '../db/database'
+import { useAsyncData } from '../hooks/useAsyncData'
 
 const CATEGORIES = ['全部', '人事专业', '超市经营', '内心能量', '人生智慧']
 
@@ -10,38 +9,22 @@ export default function Study() {
   const [weekStudyHours, setWeekStudyHours] = useState(0)
   const [streakDays, setStreakDays] = useState(0)
 
-  const courses = useLiveQuery(() =>
-    db.courses.where('category').equals(activeTab).toArray()
-  , [activeTab]) || []
+  const { data: courses } = useAsyncData(() => coursesApi.getAll(activeTab === '全部' ? undefined : activeTab), [activeTab])
 
-  const allCourses = useLiveQuery(() => db.courses.toArray()) || []
-
-  const books = useLiveQuery(() =>
-    db.books.where('category').equals(activeTab).toArray()
-  , [activeTab]) || []
+  const { data: books } = useAsyncData(() => booksApi.getAll(activeTab === '全部' ? undefined : activeTab), [activeTab])
 
   useEffect(() => {
     const weekDates = getWeekDateRange()
-    db.studyRecords
-      .where('date')
-      .anyOf(weekDates)
-      .toArray()
-      .then(records => {
-        const total = records.reduce((sum, r) => sum + (r.duration || 0), 0)
-        setWeekStudyHours(Math.round(total / 60 * 10) / 10)
-      })
-    getStreakDays(db.studyRecords, 'date').then(setStreakDays)
+    studyRecordsApi.getByDates(weekDates).then(records => {
+      const total = records.reduce((sum, r) => sum + (r.duration || 0), 0)
+      setWeekStudyHours(Math.round(total / 60 * 10) / 10)
+    })
+    // streak 需要获取所有学习记录
+    studyRecordsApi.getByDates(weekDates).then(records => getStreakDays(records, 'date')).then(setStreakDays)
   }, [])
 
-  const filteredCourses = useMemo(() => {
-    if (activeTab === '全部') return allCourses
-    return courses
-  }, [activeTab, allCourses, courses])
-
-  const displayBooks = useMemo(() => {
-    if (activeTab === '全部') return books
-    return books
-  }, [activeTab, books])
+  const courseList = courses || []
+  const bookList = books || []
 
   return (
     <div className="animate-fade-in pb-24">
@@ -98,13 +81,13 @@ export default function Study() {
       <div className="px-4 mt-5">
         <h2 className="text-lg font-bold text-slate-800 mb-3">📚 在学课程</h2>
         <div className="space-y-3">
-          {filteredCourses.length === 0 ? (
+          {courseList.length === 0 ? (
             <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-2xl card-shadow">
               <p className="text-3xl mb-2">📖</p>
               <p>暂无课程</p>
             </div>
           ) : (
-            filteredCourses.map(course => (
+            courseList.map(course => (
               <div key={course.id} className="bg-white rounded-2xl card-shadow overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-400 to-indigo-400 h-20 flex items-center px-4">
                   <span className="text-3xl">🎓</span>
@@ -133,13 +116,13 @@ export default function Study() {
       <div className="px-4 mt-5">
         <h2 className="text-lg font-bold text-slate-800 mb-3">📖 推荐阅读</h2>
         <div className="space-y-3">
-          {displayBooks.length === 0 ? (
+          {bookList.length === 0 ? (
             <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-2xl card-shadow">
               <p className="text-3xl mb-2">📕</p>
               <p>暂无推荐书籍</p>
             </div>
           ) : (
-            displayBooks.map(book => (
+            bookList.map(book => (
               <div key={book.id} className="bg-white rounded-2xl p-4 card-shadow flex items-center gap-3">
                 <div className="w-14 h-18 bg-gradient-to-br from-red-400 to-orange-400 rounded-lg flex items-center justify-center text-xl flex-shrink-0" style={{ height: '70px' }}>
                   📕

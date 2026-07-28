@@ -6,19 +6,26 @@
   "description": "个人移动工作台 - 每天都能用的淡蓝风格效率工具",
   "scripts": {
     "dev": "vite",
+    "server": "node server/index.js",
+    "dev:all": "concurrently \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview",
     "stress-test": "node tests/stress-test.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.9",
+    "cors": "^2.8.6",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
+    "express": "^5.2.1",
+    "postgres": "^3.4.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.4",
     "fake-indexeddb": "^6.0.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",

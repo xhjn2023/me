@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db, todayStr, formatDateCN } from '../db/database'
+import { tasksApi, todayStr, formatDateCN } from '../db/database'
+import { useAsyncData } from '../hooks/useAsyncData'
 
 const CATEGORIES = [
   { key: 'all', label: '全部' },
@@ -23,29 +23,29 @@ export default function Work() {
   const [category, setCategory] = useState('all')
   const [newCategory, setNewCategory] = useState('工作')
 
-  const tasks = useLiveQuery(async () => {
-    let items = await db.tasks.where('date').equals(today).toArray()
-    if (category !== 'all') {
-      items = items.filter(t => t.category === category)
-    }
-    items.sort((a, b) => {
-      if (a.done !== b.done) return a.done ? 1 : -1
-      return (a.time || '').localeCompare(b.time || '')
-    })
-    return items
-  }, [today, category]) || []
+  const { data: rawTasks, refresh: refreshTasks } = useAsyncData(
+    () => tasksApi.getByDate(today, category === 'all' ? undefined : category),
+    [today, category]
+  )
 
-  const timelineTasks = useLiveQuery(async () => {
-    let items = await db.tasks.where('date').equals(today).toArray()
-    return items
-      .filter(t => t.time)
-      .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
-  }, [today]) || []
+  const { data: rawTimelineTasks, refresh: refreshTimeline } = useAsyncData(
+    () => tasksApi.getByDate(today),
+    [today]
+  )
+
+  const tasks = (rawTasks || []).slice().sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1
+    return (a.time || '').localeCompare(b.time || '')
+  })
+
+  const timelineTasks = (rawTimelineTasks || [])
+    .filter(t => t.time)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
 
   async function addTask() {
     const text = input.trim()
     if (!text) return
-    await db.tasks.add({
+    await tasksApi.add({
       title: text,
       done: false,
       priority: 0,
@@ -55,14 +55,23 @@ export default function Work() {
       createdAt: Date.now()
     })
     setInput('')
+    refreshTasks()
+    refreshTimeline()
+    window.dispatchEvent(new Event('app-data-changed'))
   }
 
   async function toggleTask(id, done) {
-    await db.tasks.update(id, { done: !done })
+    await tasksApi.update(id, { done: !done })
+    refreshTasks()
+    refreshTimeline()
+    window.dispatchEvent(new Event('app-data-changed'))
   }
 
   async function deleteTask(id) {
-    await db.tasks.delete(id)
+    await tasksApi.delete(id)
+    refreshTasks()
+    refreshTimeline()
+    window.dispatchEvent(new Event('app-data-changed'))
   }
 
   const doneCount = tasks.filter(t => t.done).length

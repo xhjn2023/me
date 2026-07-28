@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db, todayStr, formatDateCN, getStreakDays } from '../db/database'
+import { useState, useEffect, useRef } from 'react'
+import { reviewsApi, tasksApi, todayStr, formatDateCN, getStreakDays } from '../db/database'
+import { useAsyncData } from '../hooks/useAsyncData'
 
 const MOODS = [
   { key: 'down', emoji: '😞', label: '低落' },
@@ -27,18 +27,18 @@ export default function Review() {
     emotional: 8.5
   })
   const [streakDays, setStreakDays] = useState(0)
+  const skipSaveRef = useRef(true)
 
-  const review = useLiveQuery(() =>
-    db.reviews.where('date').equals(today).first()
-  , [today])
+  const { data: review } = useAsyncData(() => reviewsApi.getByDate(today), [today])
+  const { data: todayTasks } = useAsyncData(() => tasksApi.getByDate(today), [today])
+  const { data: allReviews } = useAsyncData(() => reviewsApi.getAll(), [])
 
-  const todayTasks = useLiveQuery(() =>
-    db.tasks.where('date').equals(today).toArray()
-  , [today]) || []
+  const tasks = todayTasks || []
 
+  // review 数据变化时，同步到本地 state（mood 和 dimensions）
   useEffect(() => {
-    getStreakDays(db.reviews, 'date').then(setStreakDays)
     if (review) {
+      skipSaveRef.current = true
       setMood(review.mood || 'happy')
       setDimensions({
         physical: review.physical || 7.5,
@@ -49,26 +49,31 @@ export default function Review() {
     }
   }, [review?.id])
 
-  async function saveReview() {
-    const data = {
+  // streakDays 通过 reviewsApi.getAll() 获取所有复盘记录后用 getStreakDays 计算
+  useEffect(() => {
+    if (allReviews) {
+      getStreakDays(allReviews, 'date').then(setStreakDays)
+    }
+  }, [allReviews])
+
+  // mood 和 dimensions 变化时自动保存（upsert），跳过初始化触发的保存
+  useEffect(() => {
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false
+      return
+    }
+    const doneCount = tasks.filter(t => t.done).length
+    const completion = Math.round((doneCount / Math.max(tasks.length, 1)) * 100)
+    reviewsApi.upsert({
       date: today,
       mood,
       ...dimensions,
-      completion: Math.round((todayTasks.filter(t => t.done).length / Math.max(todayTasks.length, 1)) * 100)
-    }
-    if (review) {
-      await db.reviews.update(review.id, data)
-    } else {
-      await db.reviews.add(data)
-    }
-  }
-
-  useEffect(() => {
-    saveReview()
+      completion
+    })
   }, [mood, dimensions])
 
-  const doneCount = todayTasks.filter(t => t.done).length
-  const totalCount = todayTasks.length
+  const doneCount = tasks.filter(t => t.done).length
+  const totalCount = tasks.length
   const completion = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
 
   return (
@@ -176,10 +181,10 @@ export default function Review() {
           </div>
           <p className="text-sm text-gray-400 mb-4">完成 {doneCount}/{totalCount} 项</p>
           <div className="space-y-2">
-            {todayTasks.length === 0 ? (
+            {tasks.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-4">今日暂无待办任务</p>
             ) : (
-              todayTasks.map(task => (
+              tasks.map(task => (
                 <div
                   key={task.id}
                   className={`flex items-center gap-3 p-3 rounded-xl ${

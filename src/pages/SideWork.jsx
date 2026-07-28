@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db, todayStr } from '../db/database'
+import { sideProjectsApi, todayStr } from '../db/database'
+import { useAsyncData } from '../hooks/useAsyncData'
 
 const CATEGORIES = [
   { key: '自媒体', icon: '📱', color: 'from-pink-400 to-rose-400' },
@@ -16,14 +16,13 @@ export default function SideWork() {
   const [category, setCategory] = useState('自媒体')
   const [progress, setProgress] = useState(0)
 
-  const projects = useLiveQuery(() =>
-    db.sideProjects.orderBy('createdAt').reverse().toArray()
-  ) || []
+  const { data: projects, refresh } = useAsyncData(() => sideProjectsApi.getAll(), [])
+  const projectsList = projects || []
 
   async function addProject() {
     const t = title.trim()
     if (!t) return
-    await db.sideProjects.add({
+    await sideProjectsApi.add({
       title: t,
       category,
       progress,
@@ -32,18 +31,24 @@ export default function SideWork() {
     setTitle('')
     setProgress(0)
     setShowForm(false)
+    refresh()
+    window.dispatchEvent(new Event('app-data-changed'))
   }
 
   async function updateProgress(id, newProgress) {
-    await db.sideProjects.update(id, { progress: newProgress })
+    await sideProjectsApi.update(id, { progress: newProgress })
+    refresh()
+    window.dispatchEvent(new Event('app-data-changed'))
   }
 
   async function deleteProject(id) {
-    await db.sideProjects.delete(id)
+    await sideProjectsApi.delete(id)
+    refresh()
+    window.dispatchEvent(new Event('app-data-changed'))
   }
 
-  const totalProgress = projects.length > 0
-    ? Math.round(projects.reduce((sum, p) => sum + p.progress, 0) / projects.length)
+  const totalProgress = projectsList.length > 0
+    ? Math.round(projectsList.reduce((sum, p) => sum + p.progress, 0) / projectsList.length)
     : 0
 
   return (
@@ -72,7 +77,7 @@ export default function SideWork() {
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-gray-800">{projects.length}</span>
+                <span className="text-3xl font-bold text-gray-800">{projectsList.length}</span>
                 <span className="text-sm text-gray-400">个项目</span>
               </div>
               <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -90,7 +95,7 @@ export default function SideWork() {
       <div className="px-4 mt-5">
         <h2 className="text-lg font-bold text-slate-800 mb-3">🚀 我的项目</h2>
         <div className="space-y-3">
-          {projects.length === 0 ? (
+          {projectsList.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <p className="text-4xl mb-3">🚀</p>
               <p className="text-sm">还没有副业项目</p>
@@ -102,7 +107,7 @@ export default function SideWork() {
               </button>
             </div>
           ) : (
-            projects.map(project => {
+            projectsList.map(project => {
               const catInfo = CATEGORIES.find(c => c.key === project.category) || CATEGORIES[4]
               return (
                 <div key={project.id} className="bg-white rounded-2xl card-shadow overflow-hidden">

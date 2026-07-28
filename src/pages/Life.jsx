@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db, todayStr } from '../db/database'
+import { lifeRecordsApi, todayStr } from '../db/database'
+import { useAsyncData } from '../hooks/useAsyncData'
 
 const TYPES = [
   { key: '运动', icon: '🏃', color: 'bg-green-100 text-green-600' },
@@ -15,29 +15,32 @@ export default function Life() {
   const [input, setInput] = useState('')
   const [type, setType] = useState('运动')
 
-  const records = useLiveQuery(() =>
-    db.lifeRecords.where('date').equals(today).toArray()
-  , [today]) || []
+  const { data: records, refresh } = useAsyncData(() => lifeRecordsApi.getByDate(today), [today])
+  const recordsList = records || []
 
   async function addRecord() {
     const text = input.trim()
     if (!text) return
-    await db.lifeRecords.add({
+    await lifeRecordsApi.add({
       date: today,
       type,
       content: text,
       createdAt: Date.now()
     })
     setInput('')
+    refresh()
+    window.dispatchEvent(new Event('app-data-changed'))
   }
 
   async function deleteRecord(id) {
-    await db.lifeRecords.delete(id)
+    await lifeRecordsApi.delete(id)
+    refresh()
+    window.dispatchEvent(new Event('app-data-changed'))
   }
 
   const groupedRecords = TYPES.map(t => ({
     ...t,
-    records: records.filter(r => r.type === t.key)
+    records: recordsList.filter(r => r.type === t.key)
   }))
 
   return (

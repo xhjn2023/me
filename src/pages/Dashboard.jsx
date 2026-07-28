@@ -1,38 +1,45 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db, todayStr, formatDateCN, getStreakDays } from '../db/database'
-import { useEffect, useState } from 'react'
+import { tasksApi, coursesApi, studyRecordsApi, todayStr, formatDateCN, getStreakDays } from '../db/database'
+import { useAsyncData, triggerGlobalRefresh } from '../hooks/useAsyncData'
+import { useEffect, useState, useCallback } from 'react'
 
 export default function Dashboard({ onNavigate }) {
   const today = todayStr()
   const [streak, setStreak] = useState(0)
   const [studyTime, setStudyTime] = useState(0)
 
-  const todayTasks = useLiveQuery(() =>
-    db.tasks.where('date').equals(today).toArray()
-  , [today]) || []
-
-  const courses = useLiveQuery(() =>
-    db.courses.toArray()
-  ) || []
+  const { data: todayTasks, refresh: refreshTasks } = useAsyncData(
+    () => tasksApi.getByDate(today), [today]
+  )
+  const { data: allTasks } = useAsyncData(
+    () => tasksApi.getByDate(today), [today]
+  )
 
   useEffect(() => {
-    getStreakDays(db.tasks, 'date').then(setStreak)
-  }, [today])
+    if (allTasks) getStreakDays(allTasks, 'date').then(setStreak)
+  }, [allTasks])
 
   useEffect(() => {
     const weekDates = getWeekDateRange()
-    db.studyRecords
-      .where('date')
-      .anyOf(weekDates)
-      .toArray()
-      .then(records => {
-        const total = records.reduce((sum, r) => sum + (r.duration || 0), 0)
-        setStudyTime(Math.round(total / 60))
-      })
+    studyRecordsApi.getByDates(weekDates).then(records => {
+      const total = records.reduce((sum, r) => sum + (r.duration || 0), 0)
+      setStudyTime(Math.round(total / 60))
+    })
   }, [])
 
-  const doneCount = todayTasks.filter(t => t.done).length
-  const totalCount = todayTasks.length
+  // 监听全局刷新
+  const handleRefresh = useCallback(() => { refreshTasks() }, [refreshTasks])
+  useEffect(() => {
+    import('../hooks/useAsyncData').then(({ useGlobalRefresh }) => {
+      // useGlobalRefresh 是在组件中调用的，这里用事件方式
+    })
+    const handler = () => refreshTasks()
+    window.addEventListener('app-data-changed', handler)
+    return () => window.removeEventListener('app-data-changed', handler)
+  }, [refreshTasks])
+
+  const tasks = todayTasks || []
+  const doneCount = tasks.filter(t => t.done).length
+  const totalCount = tasks.length
 
   const now = new Date()
   const hour = now.getHours()
@@ -40,8 +47,6 @@ export default function Dashboard({ onNavigate }) {
   if (hour >= 12 && hour < 18) greeting = '下午好'
   else if (hour >= 18) greeting = '晚上好'
   else if (hour < 6) greeting = '夜深了'
-
-  const weekDates = getWeekDateRange()
 
   return (
     <div className="animate-fade-in pb-24">
@@ -60,9 +65,7 @@ export default function Dashboard({ onNavigate }) {
             <p className="text-xs text-white/70">学习时长</p>
           </div>
           <div>
-            <p className="text-3xl font-bold flex items-center gap-1">
-              🔥{streak}
-            </p>
+            <p className="text-3xl font-bold flex items-center gap-1">🔥{streak}</p>
             <p className="text-xs text-white/70">连续打卡</p>
           </div>
         </div>
@@ -97,41 +100,11 @@ export default function Dashboard({ onNavigate }) {
         <h2 className="text-lg font-bold text-slate-800 mb-3">五大板块</h2>
         <div className="space-y-3">
           {[
-            {
-              key: 'work',
-              icon: '💼',
-              title: '工作',
-              desc: '店长 · 人事 · 财务',
-              gradient: 'from-blue-500 to-indigo-500'
-            },
-            {
-              key: 'study',
-              icon: '📚',
-              title: '学习',
-              desc: '人事专业 · 超市经营 · 内心能量 · 人生智慧',
-              gradient: 'from-green-500 to-teal-500'
-            },
-            {
-              key: 'life',
-              icon: '🌱',
-              title: '生活',
-              desc: '饮食 · 运动',
-              gradient: 'from-emerald-500 to-green-500'
-            },
-            {
-              key: 'side',
-              icon: '🚀',
-              title: '副业',
-              desc: '自媒体 · 其他项目',
-              gradient: 'from-orange-500 to-red-500'
-            },
-            {
-              key: 'review',
-              icon: '📝',
-              title: '复盘',
-              desc: '每日总结 · 情绪记录',
-              gradient: 'from-purple-500 to-pink-500'
-            }
+            { key: 'work', icon: '💼', title: '工作', desc: '店长 · 人事 · 财务', gradient: 'from-blue-500 to-indigo-500' },
+            { key: 'study', icon: '📚', title: '学习', desc: '人事专业 · 超市经营 · 内心能量 · 人生智慧', gradient: 'from-green-500 to-teal-500' },
+            { key: 'life', icon: '🌱', title: '生活', desc: '饮食 · 运动', gradient: 'from-emerald-500 to-green-500' },
+            { key: 'side', icon: '🚀', title: '副业', desc: '自媒体 · 其他项目', gradient: 'from-orange-500 to-red-500' },
+            { key: 'review', icon: '📝', title: '复盘', desc: '每日总结 · 情绪记录', gradient: 'from-purple-500 to-pink-500' }
           ].map(item => (
             <button
               key={item.key}
@@ -170,11 +143,8 @@ function getWeekDateRange() {
 
 function getCategoryBg(key) {
   const map = {
-    work: 'bg-blue-50',
-    study: 'bg-green-50',
-    life: 'bg-emerald-50',
-    side: 'bg-orange-50',
-    review: 'bg-purple-50'
+    work: 'bg-blue-50', study: 'bg-green-50', life: 'bg-emerald-50',
+    side: 'bg-orange-50', review: 'bg-purple-50'
   }
   return map[key] || 'bg-gray-50'
 }
