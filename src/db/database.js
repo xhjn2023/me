@@ -56,6 +56,13 @@ export async function getStreakDays(records, field) {
   return streak
 }
 
+// camelCase → snake_case 字段名转换，避免 PostgREST 报错
+function toDbRow(data) {
+  if (!data || typeof data !== 'object') return data
+  const { createdAt, ...rest } = data
+  return createdAt != null ? { ...rest, created_at: createdAt } : rest
+}
+
 // ─── Tasks ───
 export const tasksApi = {
   async getByDate(date, category) {
@@ -66,7 +73,7 @@ export const tasksApi = {
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('tasks').insert(data).select().single()
+    const { data: row, error } = await supabase.from('tasks').insert(toDbRow(data)).select().single()
     if (error) throw error
     return row
   },
@@ -163,7 +170,7 @@ export const lifeRecordsApi = {
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('life_records').insert(data).select().single()
+    const { data: row, error } = await supabase.from('life_records').insert(toDbRow(data)).select().single()
     if (error) throw error
     return row
   },
@@ -181,7 +188,7 @@ export const sideProjectsApi = {
     return data || []
   },
   async add(data) {
-    const { data: row, error } = await supabase.from('side_projects').insert(data).select().single()
+    const { data: row, error } = await supabase.from('side_projects').insert(toDbRow(data)).select().single()
     if (error) throw error
     return row
   },
