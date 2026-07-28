@@ -252,13 +252,17 @@ export function updateSettings(patch) {
   return next
 }
 
-/** 预估吃完日期（基于余量与每日剂量） */
+/** 预估吃完日期（基于余量与每日剂量）
+ *  已打卡今日：剩余药片从明天起算，偏移 = days
+ *  未打卡今日：今日含在消耗周期内，偏移 = days - 1
+ */
 export function estimateFinishDate(state) {
   const s = state || getState()
   const dose = s.dailyDose || 1
   if (s.remainingPills <= 0) return null
   const days = Math.ceil(s.remainingPills / dose)
-  return dateOffsetStr(days - 1)
+  const offset = isCheckedToday() ? days : days - 1
+  return dateOffsetStr(offset)
 }
 
 /** 是否低量（余量 ≤ 阈值） */

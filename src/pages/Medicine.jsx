@@ -67,8 +67,16 @@ export default function Medicine() {
     showToast(`已开启第${state.bottleNumber + 1}瓶`)
   }
 
-  // 派生值
-  const finishDate = useMemo(() => medicine.estimateFinishDate(state), [state])
+  // 派生值（依赖 checkedToday：打卡后会改变预计吃完日期）
+  const finishDate = useMemo(
+    () => {
+      const d = medicine.estimateFinishDate(state)
+      if (!d) return null
+      const dt = new Date(d)
+      return `${dt.getMonth() + 1}月${dt.getDate()}日`
+    },
+    [state, checkedToday]
+  )
   const low = useMemo(() => medicine.isLowSupply(state), [state])
   const progress = state.pillsPerBottle > 0
     ? Math.min(100, Math.round((state.remainingPills / state.pillsPerBottle) * 100))

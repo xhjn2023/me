@@ -7,7 +7,8 @@ const TYPES = [
   { key: '饮食', icon: '🍎', color: 'bg-orange-100 text-orange-600' },
   { key: '睡眠', icon: '😴', color: 'bg-blue-100 text-blue-600' },
   { key: '健康', icon: '💊', color: 'bg-pink-100 text-pink-600' },
-  { key: '娱乐', icon: '🎮', color: 'bg-purple-100 text-purple-600' }
+  { key: '娱乐', icon: '🎮', color: 'bg-purple-100 text-purple-600' },
+  { key: '日记', icon: '📝', color: 'bg-amber-100 text-amber-600' }
 ]
 
 export default function Life() {
@@ -68,17 +69,27 @@ export default function Life() {
             ))}
           </div>
           <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addRecord()}
-              placeholder={`记录${type}内容...`}
-              className="flex-1 px-4 py-2.5 bg-gray-50 rounded-xl text-sm focus:outline-none focus:bg-gray-100"
-            />
+            {type === '日记' ? (
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder="写下今天的想法、感受..."
+                rows={3}
+                className="flex-1 px-4 py-2.5 bg-gray-50 rounded-xl text-sm focus:outline-none focus:bg-gray-100 resize-none"
+              />
+            ) : (
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addRecord()}
+                placeholder={`记录${type}内容...`}
+                className="flex-1 px-4 py-2.5 bg-gray-50 rounded-xl text-sm focus:outline-none focus:bg-gray-100"
+              />
+            )}
             <button
               onClick={addRecord}
-              className="w-10 h-10 bg-green-500 text-white rounded-xl btn-press flex items-center justify-center text-lg"
+              className="w-10 h-10 bg-green-500 text-white rounded-xl btn-press flex items-center justify-center text-lg self-start"
             >
               +
             </button>
@@ -102,19 +113,38 @@ export default function Life() {
               ) : (
                 <div className="space-y-2">
                   {group.records.map(record => (
-                    <div key={record.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center ${group.color}`}>
-                          {group.icon}
-                        </span>
-                        <span className="text-sm text-gray-700">{record.content}</span>
-                      </div>
-                      <button
-                        onClick={() => deleteRecord(record.id)}
-                        className="text-gray-300 hover:text-red-400 text-xs"
-                      >
-                        删除
-                      </button>
+                    <div key={record.id} className={`p-2 bg-gray-50 rounded-lg ${group.key === '日记' ? 'flex flex-col gap-1.5' : 'flex items-center justify-between'}`}>
+                      {group.key === '日记' ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className={`w-8 h-8 rounded-full flex items-center justify-center ${group.color}`}>
+                              {group.icon}
+                            </span>
+                            <button
+                              onClick={() => deleteRecord(record.id)}
+                              className="text-gray-300 hover:text-red-400 text-xs"
+                            >
+                              删除
+                            </button>
+                          </div>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap pl-10">{record.content}</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className={`w-8 h-8 rounded-full flex items-center justify-center ${group.color}`}>
+                              {group.icon}
+                            </span>
+                            <span className="text-sm text-gray-700">{record.content}</span>
+                          </div>
+                          <button
+                            onClick={() => deleteRecord(record.id)}
+                            className="text-gray-300 hover:text-red-400 text-xs"
+                          >
+                            删除
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

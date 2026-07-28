@@ -10,7 +10,7 @@ import { initializeData } from './db/seed'
 
 const TABS = [
   { key: 'dashboard', label: '首页', icon: HomeIcon },
-  { key: 'work', label: '工作', icon: WorkIcon, badge: 9 },
+  { key: 'work', label: '工作', icon: WorkIcon },
   { key: 'study', label: '学习', icon: StudyIcon },
   { key: 'life', label: '生活', icon: LifeIcon },
   { key: 'medicine', label: '用药', icon: PillIcon },
