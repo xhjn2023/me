@@ -14,10 +14,11 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: #F0F7FF;
-  color: #1F3D5C;
-  font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: #f8fafc; /* slate-50 */
+  color: #0f172a; /* slate-900 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
 }
 
@@ -34,18 +35,20 @@ html, body {
   scrollbar-width: none;
 }
 
+/* 应用背景：中性灰，专业克制 */
 .app-bg {
-  background: linear-gradient(180deg, #F0F7FF 0%, #E0EFFF 100%);
+  background: #f8fafc;
   min-height: 100vh;
   min-height: 100dvh;
 }
 
+/* 卡片阴影：更克制（shadcn 风格） */
 .card-shadow {
-  box-shadow: 0 2px 12px rgba(126, 182, 230, 0.15);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .btn-press:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
   transition: transform 0.1s;
 }
 
@@ -65,6 +68,15 @@ html, body {
   animation: slideUp 0.25s ease-out;
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Range 滑块统一样式 */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -80,13 +92,14 @@ input[type="range"]::-webkit-slider-thumb {
   height: 20px;
   border-radius: 50%;
   background: white;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  border: 2px solid #6366f1;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.15s;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
 }
 
 input[type="range"]::-moz-range-thumb {
@@ -94,12 +107,18 @@ input[type="range"]::-moz-range-thumb {
   height: 20px;
   border-radius: 50%;
   background: white;
-  border: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  border: 2px solid #6366f1;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
   cursor: pointer;
 }
 
 input[type="range"]:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 选中文本颜色 */
+::selection {
+  background: rgba(99, 102, 241, 0.15);
+  color: #4338ca;
 }

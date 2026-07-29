@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { tasksApi, todayStr, formatDateCN } from '../db/database'
 import { useAsyncData } from '../hooks/useAsyncData'
+import {
+  PageHeader, Card, Button, Input, Select, ChipGroup,
+  EmptyState, LoadingState, SectionHeader, Icon, Badge
+} from '../components/ui'
 
 const CATEGORIES = [
   { key: 'all', label: '全部' },
@@ -10,11 +14,18 @@ const CATEGORIES = [
   { key: '副业', label: '副业' }
 ]
 
-const CATEGORY_COLORS = {
-  '工作': 'bg-blue-100 text-blue-600',
-  '学习': 'bg-green-100 text-green-600',
-  '生活': 'bg-emerald-100 text-emerald-600',
-  '副业': 'bg-orange-100 text-orange-600'
+const CATEGORY_BADGE_COLOR = {
+  '工作': 'blue',
+  '学习': 'emerald',
+  '生活': 'teal',
+  '副业': 'orange'
+}
+
+const TIMELINE_ICON = {
+  '工作': 'briefcase',
+  '学习': 'bookOpen',
+  '生活': 'leaf',
+  '副业': 'rocket'
 }
 
 export default function Work() {
@@ -23,7 +34,7 @@ export default function Work() {
   const [category, setCategory] = useState('all')
   const [newCategory, setNewCategory] = useState('工作')
 
-  const { data: rawTasks, refresh: refreshTasks } = useAsyncData(
+  const { data: rawTasks, loading: tasksLoading, refresh: refreshTasks } = useAsyncData(
     () => tasksApi.getByDate(today, category === 'all' ? undefined : category),
     [today, category]
   )
@@ -79,141 +90,158 @@ export default function Work() {
 
   return (
     <div className="animate-fade-in pb-24">
-      <div className="bg-gradient-to-br from-indigo-500 to-purple-500 p-5 text-white rounded-b-3xl">
-        <h1 className="text-xl font-bold">个人工作台</h1>
-        <p className="text-sm text-white/80 mt-0.5">{formatDateCN(today)}</p>
-      </div>
+      <PageHeader
+        title="工作"
+        subtitle={`${formatDateCN(today)}${totalCount > 0 ? ` · 今日 ${doneCount}/${totalCount}` : ''}`}
+        accent="work"
+        icon="briefcase"
+      />
 
-      <div className="px-4 -mt-3">
-        <div className="bg-white rounded-2xl p-4 card-shadow">
-          <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.key}
-                onClick={() => setCategory(cat.key)}
-                className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors ${
-                  category === cat.key
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-gray-100 text-gray-600'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
+      {/* 任务列表卡片 */}
+      <div className="px-4 -mt-4 relative z-10">
+        <Card className="p-4 shadow-md">
+          <ChipGroup
+            items={CATEGORIES.map(c => ({ value: c.key, label: c.label }))}
+            value={category}
+            onChange={setCategory}
+            color="indigo"
+            className="mb-3"
+          />
 
           <div className="flex gap-2 mb-4">
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addTask()}
-              placeholder="添加任务..."
-              className="flex-1 px-4 py-2.5 bg-gray-50 rounded-xl text-sm focus:outline-none focus:bg-gray-100"
-            />
-            <select
-              value={newCategory}
-              onChange={e => setNewCategory(e.target.value)}
-              className="px-3 py-2.5 bg-gray-50 rounded-xl text-sm focus:outline-none"
-            >
-              <option value="工作">工作</option>
-              <option value="学习">学习</option>
-              <option value="生活">生活</option>
-              <option value="副业">副业</option>
-            </select>
-            <button
+            <div className="flex-1 min-w-0">
+              <Input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addTask()}
+                placeholder="添加任务..."
+              />
+            </div>
+            <div className="w-24 flex-shrink-0">
+              <Select
+                value={newCategory}
+                onChange={e => setNewCategory(e.target.value)}
+              >
+                <option value="工作">工作</option>
+                <option value="学习">学习</option>
+                <option value="生活">生活</option>
+                <option value="副业">副业</option>
+              </Select>
+            </div>
+            <Button
+              icon="plus"
+              size="icon"
               onClick={addTask}
-              className="w-10 h-10 bg-indigo-500 text-white rounded-xl btn-press flex items-center justify-center text-lg"
-            >
-              +
-            </button>
+              className="w-10 h-10 flex-shrink-0"
+              aria-label="添加任务"
+            />
           </div>
 
-          <div className="space-y-2">
-            {tasks.length === 0 && (
-              <div className="text-center py-8 text-gray-400 text-sm">
-                <p className="text-3xl mb-2">📋</p>
-                <p>暂无任务，添加一个吧</p>
-              </div>
-            )}
-            {tasks.map(task => (
-              <div
-                key={task.id}
-                className={`flex items-start gap-3 p-3 rounded-xl transition-colors ${
-                  task.done ? 'bg-gray-50' : 'bg-white border border-gray-100'
-                }`}
-              >
-                <button
-                  onClick={() => toggleTask(task.id, task.done)}
-                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center mt-0.5 flex-shrink-0 transition-colors ${
-                    task.done ? 'bg-green-500 border-green-500' : 'border-gray-300'
+          {tasksLoading ? (
+            <LoadingState text="加载任务..." />
+          ) : tasks.length === 0 ? (
+            <EmptyState
+              icon="clipboardList"
+              title="暂无任务"
+              description="添加一个开始今天的工作吧"
+            />
+          ) : (
+            <div className="space-y-1.5">
+              {tasks.map(task => (
+                <div
+                  key={task.id}
+                  className={`flex items-start gap-3 p-3 rounded-xl transition-colors ${
+                    task.done ? 'bg-slate-50' : 'bg-white border border-slate-100'
                   }`}
                 >
-                  {task.done && <span className="text-white text-xs">✓</span>}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                    {task.title}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    {task.category && (
-                      <span className={`text-xs px-2 py-0.5 rounded ${CATEGORY_COLORS[task.category] || 'bg-gray-100 text-gray-500'}`}>
-                        {task.category}
-                      </span>
-                    )}
-                    {task.time && (
-                      <span className="text-xs text-gray-400">· {task.time}</span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => deleteTask(task.id)}
-                  className="text-gray-300 hover:text-red-400 text-xs btn-press"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 mt-5">
-        <h2 className="text-lg font-bold text-slate-800 mb-3">今日时间轴</h2>
-        <div className="bg-white rounded-2xl p-4 card-shadow">
-          {timelineTasks.length === 0 ? (
-            <div className="text-center py-6 text-gray-400 text-sm">
-              <p className="text-2xl mb-2">⏰</p>
-              <p>暂无时间安排</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {timelineTasks.map((task, index) => (
-                <div key={task.id} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
-                      task.done ? 'bg-green-100' : 'bg-indigo-100'
-                    }`}>
-                      {task.category === '工作' ? '💼' : task.category === '学习' ? '📚' : task.category === '生活' ? '🌱' : '🚀'}
-                    </div>
-                    {index < timelineTasks.length - 1 && (
-                      <div className="w-0.5 flex-1 bg-gray-200 mt-1" style={{ minHeight: '20px' }} />
-                    )}
-                  </div>
-                  <div className="flex-1 pb-2">
-                    <p className="text-xs text-gray-400">{task.time}</p>
-                    <h3 className={`font-medium ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                  <button
+                    onClick={() => toggleTask(task.id, task.done)}
+                    className="flex-shrink-0 mt-0.5"
+                    aria-label={task.done ? '标记为未完成' : '标记为已完成'}
+                  >
+                    <Icon
+                      name={task.done ? 'checkCircle' : 'circle'}
+                      size={20}
+                      className={task.done ? 'text-emerald-500' : 'text-slate-300 hover:text-indigo-400'}
+                    />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${task.done ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                       {task.title}
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {task.done ? '已完成' : task.category}
                     </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {task.category && (
+                        <Badge color={CATEGORY_BADGE_COLOR[task.category] || 'slate'}>
+                          {task.category}
+                        </Badge>
+                      )}
+                      {task.time && (
+                        <span className="text-xs text-slate-400 flex items-center gap-0.5">
+                          <Icon name="clock" size={11} />
+                          {task.time}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="p-1 text-slate-300 hover:text-rose-400 btn-press"
+                    aria-label="删除任务"
+                  >
+                    <Icon name="trash" size={15} />
+                  </button>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </Card>
+      </div>
+
+      {/* 今日时间轴 */}
+      <div className="px-4 mt-5">
+        <SectionHeader title="今日时间轴" icon="clock" />
+        <Card className="p-4">
+          {timelineTasks.length === 0 ? (
+            <EmptyState
+              icon="clock"
+              title="暂无时间安排"
+              description="为任务设置时间后这里会显示"
+            />
+          ) : (
+            <div className="space-y-4">
+              {timelineTasks.map((task, index) => {
+                const iconName = TIMELINE_ICON[task.category] || 'circle'
+                const iconBg = task.done
+                  ? 'bg-emerald-50 text-emerald-500'
+                  : 'bg-indigo-50 text-indigo-500'
+                return (
+                  <div key={task.id} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${iconBg}`}>
+                        <Icon name={iconName} size={18} />
+                      </div>
+                      {index < timelineTasks.length - 1 && (
+                        <div className="w-0.5 flex-1 bg-slate-200 mt-1" style={{ minHeight: '20px' }} />
+                      )}
+                    </div>
+                    <div className="flex-1 pb-2">
+                      <p className="text-xs text-slate-400 flex items-center gap-0.5">
+                        <Icon name="clock" size={11} />
+                        {task.time}
+                      </p>
+                      <h3 className={`font-medium mt-0.5 ${task.done ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                        {task.title}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {task.done ? '已完成' : task.category}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   )

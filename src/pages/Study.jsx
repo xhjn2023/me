@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { coursesApi, booksApi, studyRecordsApi, todayStr, getStreakDays } from '../db/database'
 import { useAsyncData } from '../hooks/useAsyncData'
+import {
+  PageHeader, Card, Stat, ChipGroup, EmptyState, LoadingState,
+  SectionHeader, ProgressBar, Icon
+} from '../components/ui'
 
 const CATEGORIES = ['全部', '人事专业', '超市经营', '内心能量', '人生智慧']
 
@@ -101,9 +105,9 @@ export default function Study() {
 
   const dailyWord = getDailyWord()
 
-  const { data: courses } = useAsyncData(() => coursesApi.getAll(activeTab === '全部' ? undefined : activeTab), [activeTab])
+  const { data: courses, loading: coursesLoading } = useAsyncData(() => coursesApi.getAll(activeTab === '全部' ? undefined : activeTab), [activeTab])
 
-  const { data: books } = useAsyncData(() => booksApi.getAll(activeTab === '全部' ? undefined : activeTab), [activeTab])
+  const { data: books, loading: booksLoading } = useAsyncData(() => booksApi.getAll(activeTab === '全部' ? undefined : activeTab), [activeTab])
 
   useEffect(() => {
     const weekDates = getWeekDateRange()
@@ -120,149 +124,143 @@ export default function Study() {
 
   return (
     <div className="animate-fade-in pb-24">
-      <div className="bg-gradient-to-br from-green-500 to-teal-500 p-5 text-white rounded-b-3xl">
-        <h1 className="text-xl font-bold">学习成长</h1>
-        <p className="text-sm text-white/80 mt-0.5">
-          本周学习 {weekStudyHours}h · 连续 {streakDays} 天
-        </p>
-      </div>
+      <PageHeader
+        title="学习成长"
+        subtitle={`本周学习 ${weekStudyHours}h · 连续 ${streakDays} 天`}
+        accent="study"
+        icon="graduationCap"
+      />
 
       {/* 每日精选格言（点击可刷新） */}
       <div className="px-4 mt-4">
         <div
           onClick={refreshQuote}
-          className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-2xl p-4 card-shadow cursor-pointer active:scale-[0.98] transition-transform"
+          className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-2xl p-4 shadow-sm cursor-pointer active:scale-[0.98] transition-transform"
           title="点击换一条"
         >
           <div className="flex items-start gap-3">
-            <span className="text-2xl flex-shrink-0">💬</span>
-            <div className="flex-1">
-              <p className="text-sm text-gray-700 leading-relaxed">{dailyQuote.text}</p>
+            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
+              <Icon name="messageCircle" size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-slate-700 leading-relaxed">{dailyQuote.text}</p>
               <p className="text-xs text-amber-600 mt-2 text-right">—— {dailyQuote.author}</p>
             </div>
-            <span className="text-xs text-amber-500 flex-shrink-0 self-start mt-0.5">↻ 换</span>
+            <span className="text-amber-500 flex-shrink-0 self-start mt-1.5" title="换一条">
+              <Icon name="refreshCw" size={14} />
+            </span>
           </div>
         </div>
       </div>
 
       {/* 每日英语六级单词 */}
       <div className="px-4 mt-3">
-        <div className="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-100 rounded-2xl p-4 card-shadow">
+        <div className="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-100 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg">🔤</span>
+            <div className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600">
+              <Icon name="languages" size={14} />
+            </div>
             <span className="text-xs text-sky-700 font-medium">每日六级单词</span>
           </div>
           <div className="flex items-baseline gap-2 flex-wrap">
-            <h3 className="text-xl font-bold text-gray-800">{dailyWord.word}</h3>
-            <span className="text-sm text-gray-500">{dailyWord.phonetic}</span>
+            <h3 className="text-xl font-bold text-slate-800">{dailyWord.word}</h3>
+            <span className="text-sm text-slate-500">{dailyWord.phonetic}</span>
           </div>
-          <p className="text-sm text-gray-600 mt-1">{dailyWord.meaning}</p>
+          <p className="text-sm text-slate-600 mt-1">{dailyWord.meaning}</p>
           <div className="mt-3 space-y-1">
-            <p className="text-sm text-gray-700 italic leading-relaxed">{dailyWord.sentence}</p>
-            <p className="text-xs text-gray-500 leading-relaxed">{dailyWord.translation}</p>
+            <p className="text-sm text-slate-700 italic leading-relaxed">{dailyWord.sentence}</p>
+            <p className="text-xs text-slate-500 leading-relaxed">{dailyWord.translation}</p>
           </div>
         </div>
       </div>
 
       <div className="px-4 mt-4">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setActiveTab(cat)}
-              className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors ${
-                activeTab === cat
-                  ? 'bg-green-500 text-white shadow-md'
-                  : 'bg-white text-gray-600 card-shadow'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+        <ChipGroup
+          items={CATEGORIES}
+          value={activeTab}
+          onChange={setActiveTab}
+          color="emerald"
+        />
       </div>
 
       <div className="px-4 mt-4 grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl p-4 card-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-500">本周学习</span>
-            <span className="text-xl">📚</span>
-          </div>
-          <div className="mt-2">
-            <span className="text-3xl font-bold text-gray-800">{weekStudyHours}</span>
-            <span className="text-lg text-gray-400">h</span>
-          </div>
-          <p className="text-xs text-green-500 mt-1">▲ 2.5h</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 card-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-500">连续学习</span>
-            <span className="text-xl">🔥</span>
-          </div>
-          <div className="mt-2">
-            <span className="text-3xl font-bold text-gray-800">{streakDays}</span>
-            <span className="text-lg text-gray-400">天</span>
-          </div>
-          <p className="text-xs text-orange-500 mt-1">继续坚持！</p>
-        </div>
+        <Stat
+          label="本周学习"
+          value={weekStudyHours}
+          unit="h"
+          icon="bookOpen"
+          color="emerald"
+        />
+        <Stat
+          label="连续学习"
+          value={streakDays}
+          unit="天"
+          icon="flame"
+          color="orange"
+          trend={<span className="text-orange-500">继续坚持！</span>}
+        />
       </div>
 
       <div className="px-4 mt-5">
-        <h2 className="text-lg font-bold text-slate-800 mb-3">📚 在学课程</h2>
+        <SectionHeader title="在学课程" icon="graduationCap" />
         <div className="space-y-3">
-          {courseList.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-2xl card-shadow">
-              <p className="text-3xl mb-2">📖</p>
-              <p>暂无课程</p>
-            </div>
+          {coursesLoading ? (
+            <Card><LoadingState text="加载课程..." /></Card>
+          ) : courseList.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon="bookOpen"
+                title="暂无课程"
+                description="切换分类或添加新课程"
+              />
+            </Card>
           ) : (
             courseList.map(course => (
-              <div key={course.id} className="bg-white rounded-2xl card-shadow overflow-hidden">
-                <div className="bg-gradient-to-r from-purple-400 to-indigo-400 h-20 flex items-center px-4">
-                  <span className="text-3xl">🎓</span>
+              <Card key={course.id} className="overflow-hidden">
+                <div className="bg-gradient-to-r from-emerald-400 to-teal-400 h-16 flex items-center px-4">
+                  <Icon name="play" size={22} className="text-white" />
                 </div>
                 <div className="p-4">
-                  <h3 className="font-semibold text-gray-800">{course.title}</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    讲师：{course.instructor} · {course.currentLessons}/{course.totalLessons}课时
+                  <h3 className="font-semibold text-slate-800">{course.title}</h3>
+                  <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
+                    <Icon name="user" size={12} />
+                    {course.instructor} · {course.currentLessons}/{course.totalLessons}课时
                   </p>
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all"
-                        style={{ width: `${course.progress}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium text-gray-600">{course.progress}%</span>
+                  <div className="mt-3">
+                    <ProgressBar value={course.progress} color="emerald" showLabel />
                   </div>
                 </div>
-              </div>
+              </Card>
             ))
           )}
         </div>
       </div>
 
       <div className="px-4 mt-5">
-        <h2 className="text-lg font-bold text-slate-800 mb-3">📖 推荐阅读</h2>
+        <SectionHeader title="推荐阅读" icon="bookOpen" />
         <div className="space-y-3">
-          {bookList.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-2xl card-shadow">
-              <p className="text-3xl mb-2">📕</p>
-              <p>暂无推荐书籍</p>
-            </div>
+          {booksLoading ? (
+            <Card><LoadingState text="加载书籍..." /></Card>
+          ) : bookList.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon="bookOpen"
+                title="暂无推荐书籍"
+              />
+            </Card>
           ) : (
             bookList.map(book => (
-              <div key={book.id} className="bg-white rounded-2xl p-4 card-shadow flex items-center gap-3">
-                <div className="w-14 h-18 bg-gradient-to-br from-red-400 to-orange-400 rounded-lg flex items-center justify-center text-xl flex-shrink-0" style={{ height: '70px' }}>
-                  📕
+              <Card key={book.id} className="p-4 flex items-center gap-3">
+                <div className="w-12 h-14 bg-gradient-to-br from-rose-400 to-orange-400 rounded-lg flex items-center justify-center text-white flex-shrink-0">
+                  <Icon name="bookOpen" size={20} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-gray-800 truncate">{book.title}</h3>
-                  <p className="text-sm text-gray-500 mt-1 truncate">
+                  <h3 className="font-medium text-slate-800 truncate">{book.title}</h3>
+                  <p className="text-sm text-slate-500 mt-1 truncate">
                     {book.author} · {book.category}
                   </p>
                 </div>
-              </div>
+              </Card>
             ))
           )}
         </div>

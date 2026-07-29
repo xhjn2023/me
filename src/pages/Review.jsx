@@ -1,20 +1,26 @@
 import { useState, useEffect, useRef } from 'react'
 import { reviewsApi, tasksApi, todayStr, formatDateCN, getStreakDays } from '../db/database'
 import { useAsyncData } from '../hooks/useAsyncData'
+import {
+  PageHeader, Card, RangeSlider, EmptyState,
+  SectionHeader, Badge, Icon, showToast
+} from '../components/ui'
 
+// 今日情绪：5 个按钮，emoji 改为 Icon（smile / meh / frown 等）
 const MOODS = [
-  { key: 'down', emoji: '😞', label: '低落' },
-  { key: 'plain', emoji: '😐', label: '平淡' },
-  { key: 'good', emoji: '😊', label: '不错' },
-  { key: 'happy', emoji: '😄', label: '开心' },
-  { key: 'great', emoji: '🤩', label: '超赞' }
+  { key: 'down',  icon: 'frown', label: '低落' },
+  { key: 'plain', icon: 'meh',   label: '平淡' },
+  { key: 'good',  icon: 'smile', label: '不错' },
+  { key: 'happy', icon: 'star',  label: '开心' },
+  { key: 'great', icon: 'flame', label: '超赞' }
 ]
 
+// 四维评分：每维一个颜色，icon 用对应语义图标
 const DIMENSIONS = [
-  { key: 'physical', label: '体能', color: 'bg-green-400', icon: '💪' },
-  { key: 'mental', label: '心力', color: 'bg-indigo-400', icon: '💜' },
-  { key: 'intellectual', label: '脑力', color: 'bg-amber-400', icon: '🧠' },
-  { key: 'emotional', label: '情绪', color: 'bg-pink-400', icon: '💕' }
+  { key: 'physical',      label: '体能', icon: 'battery',    color: '#10b981', textClass: 'text-emerald-500' },
+  { key: 'mental',        label: '心力', icon: 'heartPulse', color: '#6366f1', textClass: 'text-indigo-500' },
+  { key: 'intellectual',  label: '脑力', icon: 'brain',      color: '#f59e0b', textClass: 'text-amber-500' },
+  { key: 'emotional',     label: '情绪', icon: 'smile',      color: '#f43f5e', textClass: 'text-rose-500' }
 ]
 
 export default function Review() {
@@ -57,6 +63,7 @@ export default function Review() {
   }, [allReviews])
 
   // mood 和 dimensions 变化时自动保存（upsert），跳过初始化触发的保存
+  // 加入 500ms 防抖，避免拖动滑块时频繁触发；保存成功后弹出 toast
   useEffect(() => {
     if (skipSaveRef.current) {
       skipSaveRef.current = false
@@ -64,12 +71,16 @@ export default function Review() {
     }
     const doneCount = tasks.filter(t => t.done).length
     const completion = Math.round((doneCount / Math.max(tasks.length, 1)) * 100)
-    reviewsApi.upsert({
-      date: today,
-      mood,
-      ...dimensions,
-      completion
-    })
+    const timer = setTimeout(() => {
+      reviewsApi.upsert({
+        date: today,
+        mood,
+        ...dimensions,
+        completion
+      }).then(() => showToast('已保存', 'success', 1000))
+    }, 500)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mood, dimensions])
 
   const doneCount = tasks.filter(t => t.done).length
@@ -78,148 +89,144 @@ export default function Review() {
 
   return (
     <div className="animate-fade-in pb-24">
-      <div className="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-5 text-white rounded-b-3xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">每日复盘</h1>
-            <p className="text-sm text-white/80 mt-0.5">每日复盘 · 第{streakDays + 20}天</p>
-          </div>
-          <div className="flex gap-2">
-            <button className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
-              🔍
-            </button>
-            <button className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
-              🔔
-            </button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        accent="review"
+        icon="clipboardList"
+        title="每日复盘"
+        subtitle={`第 ${streakDays} 天`}
+      />
 
+      {/* Hero 卡片：连续天数 + 完成率（移除 +20/+21 偏移） */}
       <div className="px-4 mt-4">
-        <div className="bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-2xl p-5 text-white card-shadow relative overflow-hidden">
-          <div className="absolute top-0 right-0 opacity-20 text-6xl">📝</div>
-          <p className="text-white/80 text-sm">{formatDateCN(today)}</p>
-          <h2 className="text-2xl font-bold mt-1">每日复盘</h2>
-          <div className="flex items-center gap-6 mt-4">
+        <Card className="p-5 bg-gradient-to-br from-violet-500 via-purple-500 to-pink-500 border-0 text-white shadow-md shadow-purple-500/20 relative overflow-hidden">
+          <div className="absolute -top-3 -right-3 text-white/10 pointer-events-none">
+            <Icon name="clipboardList" size={88} />
+          </div>
+          <p className="text-white/80 text-sm relative">{formatDateCN(today)}</p>
+          <h2 className="text-xl font-bold mt-1 relative">每日复盘</h2>
+          <div className="flex items-center gap-6 mt-4 relative">
             <div>
-              <p className="text-2xl font-bold">{streakDays + 21}<span className="text-base text-white/70">天</span></p>
+              <p className="text-2xl font-bold tabular-nums">
+                {streakDays}<span className="text-base text-white/70 ml-0.5">天</span>
+              </p>
               <p className="text-xs text-white/70">连续复盘</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{completion}<span className="text-base text-white/70">%</span></p>
+              <p className="text-2xl font-bold tabular-nums">
+                {completion}<span className="text-base text-white/70 ml-0.5">%</span>
+              </p>
               <p className="text-xs text-white/70">今日完成率</p>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
 
+      {/* 今日情绪 */}
       <div className="px-4 mt-4">
-        <div className="bg-white rounded-2xl p-5 card-shadow">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-2xl">😊</span>
-            <h3 className="font-semibold text-gray-800">今日情绪</h3>
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Icon name="smile" size={18} className="text-violet-500" />
+            <h3 className="font-semibold text-slate-800 text-sm">今日情绪</h3>
           </div>
-          <p className="text-sm text-gray-400 mb-4">选择你此刻的心情</p>
-          <div className="flex justify-between">
+          <p className="text-xs text-slate-400 mb-4">选择你此刻的心情</p>
+          <div className="flex justify-between gap-1">
             {MOODS.map(m => (
               <button
                 key={m.key}
                 onClick={() => setMood(m.key)}
-                className={`flex flex-col items-center gap-1 px-2 py-3 rounded-2xl transition-all ${
+                className={`flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-2xl flex-1 transition-all btn-press ${
                   mood === m.key
-                    ? 'bg-indigo-50 scale-110 shadow-lg'
-                    : 'hover:bg-gray-50'
+                    ? 'bg-indigo-50 scale-110 shadow-sm'
+                    : 'hover:bg-slate-50'
                 }`}
               >
-                <span className={`text-3xl ${mood === m.key ? 'scale-110' : ''}`}>{m.emoji}</span>
-                <span className={`text-xs ${mood === m.key ? 'text-indigo-600 font-medium' : 'text-gray-400'}`}>
+                <Icon
+                  name={m.icon}
+                  size={26}
+                  className={mood === m.key ? 'text-indigo-500' : 'text-slate-400'}
+                />
+                <span className={`text-xs ${mood === m.key ? 'text-indigo-600 font-medium' : 'text-slate-400'}`}>
                   {m.label}
                 </span>
               </button>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
 
+      {/* 四维评分 */}
       <div className="px-4 mt-4">
-        <div className="bg-white rounded-2xl p-5 card-shadow">
+        <Card className="p-5">
+          <SectionHeader title="四维评分" icon="zap" />
           <div className="space-y-4">
             {DIMENSIONS.map(dim => (
               <div key={dim.key}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">{dim.label}</span>
-                  <span className="text-sm font-medium text-gray-800">{dimensions[dim.key]}</span>
+                  <span className="text-sm text-slate-600 flex items-center gap-1.5">
+                    <Icon name={dim.icon} size={14} className={dim.textClass} />
+                    {dim.label}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-800 tabular-nums">
+                    {dimensions[dim.key]}
+                  </span>
                 </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  step="0.5"
+                <RangeSlider
                   value={dimensions[dim.key]}
-                  onChange={e => setDimensions(prev => ({ ...prev, [dim.key]: parseFloat(e.target.value) }))}
-                  className="w-full h-2 bg-gray-100 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${getColorFromKey(dim.key)} ${(dimensions[dim.key] / 10) * 100}%, #f3f4f6 ${(dimensions[dim.key] / 10) * 100}%)`
-                  }}
+                  onChange={v => setDimensions(prev => ({ ...prev, [dim.key]: v }))}
+                  min={1}
+                  max={10}
+                  step={0.5}
+                  color={dim.color}
                 />
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
 
+      {/* 今日待办回顾 */}
       <div className="px-4 mt-4">
-        <div className="bg-white rounded-2xl p-5 card-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">📋</span>
-              <h3 className="font-semibold text-gray-800">今日待办回顾</h3>
-            </div>
-            <span className="text-sm font-medium text-green-500 bg-green-50 px-3 py-1 rounded-full">
-              {completion}%
-            </span>
-          </div>
-          <p className="text-sm text-gray-400 mb-4">完成 {doneCount}/{totalCount} 项</p>
-          <div className="space-y-2">
-            {tasks.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">今日暂无待办任务</p>
-            ) : (
-              tasks.map(task => (
+        <Card className="p-5">
+          <SectionHeader
+            title="今日待办回顾"
+            icon="listChecks"
+            action={<Badge color="green">{completion}%</Badge>}
+          />
+          <p className="text-xs text-slate-400 mb-3 -mt-2">完成 {doneCount}/{totalCount} 项</p>
+          {tasks.length === 0 ? (
+            <EmptyState
+              icon="listChecks"
+              title="今日暂无待办任务"
+              description="去工作页面添加任务吧"
+            />
+          ) : (
+            <div className="space-y-2">
+              {tasks.map(task => (
                 <div
                   key={task.id}
                   className={`flex items-center gap-3 p-3 rounded-xl ${
-                    task.done ? 'bg-gray-50' : 'bg-white border border-gray-100'
+                    task.done ? 'bg-slate-50' : 'bg-white border border-slate-100'
                   }`}
                 >
-                  <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${
-                    task.done ? 'bg-green-500' : 'border-2 border-gray-300'
-                  }`}>
-                    {task.done && <span className="text-white text-xs">✓</span>}
-                  </div>
+                  <Icon
+                    name={task.done ? 'checkCircle' : 'circle'}
+                    size={18}
+                    className={task.done ? 'text-emerald-500' : 'text-slate-300'}
+                  />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                    <p className={`text-sm ${task.done ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                       {task.title}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-slate-400 mt-0.5">
                       {task.time || ''} · {task.done ? '已完成' : (task.category || '待完成')}
                     </p>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   )
-}
-
-function getColorFromKey(key) {
-  const colors = {
-    physical: '#4ade80',
-    mental: '#818cf8',
-    intellectual: '#fbbf24',
-    emotional: '#f472b6'
-  }
-  return colors[key] || '#818cf8'
 }

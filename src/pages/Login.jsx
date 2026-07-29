@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { signIn, signUp, claimLegacyData } from '../db/auth'
+import { Icon } from '../components/ui/icons'
+import { Input, Button, showToast } from '../components/ui'
 
 export default function Login({ onSuccess }) {
-  const [mode, setMode] = useState('signin') // 'signin' | 'signup'
+  const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
@@ -17,10 +20,9 @@ export default function Login({ onSuccess }) {
     try {
       if (mode === 'signup') {
         const data = await signUp(email, password)
-        // Supabase 默认开启邮箱验证时，需要用户去邮箱点击确认
         if (data.session) {
-          // 已自动登录（未开启邮箱验证）
           await tryClaimLegacy()
+          showToast('注册成功', 'success')
           onSuccess?.()
         } else {
           setInfo('注册成功！请到邮箱点击确认链接完成验证。')
@@ -29,6 +31,7 @@ export default function Login({ onSuccess }) {
       } else {
         await signIn(email, password)
         await tryClaimLegacy()
+        showToast('登录成功', 'success')
         onSuccess?.()
       }
     } catch (err) {
@@ -51,17 +54,15 @@ export default function Login({ onSuccess }) {
   }
 
   return (
-    <div className="app-bg min-h-screen flex items-center justify-center px-6">
+    <div className="app-bg min-h-screen flex flex-col items-center justify-center px-6 py-8">
       <div className="w-full max-w-sm">
         {/* Logo / 标题 */}
         <div className="text-center mb-8 animate-fade-in">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center shadow-lg">
-            <svg className="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 12l9-9 9 9M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <Icon name="home" size={32} className="text-white" strokeWidth={2} fill="currentColor" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">个人工作台</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">个人工作台</h1>
+          <p className="text-sm text-slate-500 mt-1">
             {mode === 'signup' ? '创建账号开始使用' : '登录你的工作台'}
           </p>
         </div>
@@ -69,53 +70,71 @@ export default function Login({ onSuccess }) {
         {/* 表单卡片 */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white/95 backdrop-blur-md rounded-2xl p-6 card-shadow animate-fade-in space-y-4"
+          className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm animate-fade-in space-y-4"
         >
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">邮箱</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition text-sm"
-              disabled={loading}
-            />
-          </div>
+          <Input
+            label="邮箱"
+            type="email"
+            required
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            icon="mail"
+            disabled={loading}
+          />
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">密码</label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="至少 6 位"
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition text-sm"
-              disabled={loading}
-            />
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">密码</label>
+            <div className="relative">
+              <Icon name="lock" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="至少 6 位"
+                disabled={loading}
+                className="w-full pl-9 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                tabIndex={-1}
+              >
+                <Icon name={showPassword ? 'eyeOff' : 'eye'} size={16} />
+              </button>
+            </div>
           </div>
 
           {error && (
-            <div className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</div>
+            <div className="flex items-center gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+              <Icon name="alertCircle" size={16} className="flex-shrink-0" />
+              <span>{error}</span>
+            </div>
           )}
           {info && (
-            <div className="text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2">{info}</div>
+            <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+              <Icon name="checkCircle" size={16} className="flex-shrink-0" />
+              <span>{info}</span>
+            </div>
           )}
 
-          <button
+          <Button
             type="submit"
-            disabled={loading || !email || !password}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 text-white font-medium text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed btn-press transition"
+            size="lg"
+            loading={loading}
+            className="w-full"
+            disabled={!email || !password}
+            iconRight="logIn"
           >
-            {loading ? '处理中...' : mode === 'signup' ? '注册' : '登录'}
-          </button>
+            {mode === 'signup' ? '注册' : '登录'}
+          </Button>
         </form>
 
         {/* 切换登录/注册 */}
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-slate-500 mt-6">
           {mode === 'signup' ? '已有账号？' : '还没有账号？'}
           <button
             onClick={() => {
@@ -133,7 +152,6 @@ export default function Login({ onSuccess }) {
   )
 }
 
-/** 翻译常见 Supabase Auth 错误信息 */
 function translateError(msg) {
   if (!msg) return '操作失败'
   if (msg.includes('Invalid login credentials')) return '邮箱或密码错误'
