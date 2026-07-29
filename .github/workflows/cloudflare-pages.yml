@@ -29,9 +29,19 @@ jobs:
         env:
           CF_PAGES: '1'
 
+      - name: Verify build output
+        run: ls -la dist/
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=me-workbench --branch=main
+          preCommands: |
+            wrangler --version
+            wrangler whoami 2>&1 || true
+            echo "--- Build artifacts exist ---"
+            test -f dist/index.html && echo "OK: dist/index.html"
+            test -d dist/assets && echo "OK: dist/assets/"
+          command: pages deploy dist --project-name=me-workbench --branch=main --verbose 2>&1
+          quiet: false
