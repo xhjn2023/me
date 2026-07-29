@@ -2,9 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Cloudflare Pages 构建时会注入 CF_PAGES=1，部署在根路径；
+// GitHub Pages 部署在 /me/ 子路径。同一份代码自动兼容两种部署。
+const base = process.env.CF_PAGES === '1' ? '/' : '/me/'
+
 export default defineConfig({
-  // GitHub Pages 部署在 /me/ 子路径
-  base: '/me/',
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -18,8 +21,8 @@ export default defineConfig({
         background_color: '#F0F7FF',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/me/',
-        scope: '/me/',
+        start_url: base,
+        scope: base,
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
