@@ -24,19 +24,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Wrangler
-        run: npm install -g wrangler
-
       - name: Build
         run: npm run build
         env:
           CF_PAGES: '1'
 
       - name: Deploy to Cloudflare Pages
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          wrangler pages deploy dist \
-            --project-name=me-workbench \
-            --branch=main
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          commands: |
+            wrangler pages deploy dist \
+              --project-name=me-workbench \
+              --branch=main
