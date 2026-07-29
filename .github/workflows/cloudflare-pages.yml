@@ -12,6 +12,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: cloudflare-pages
     steps:
       - uses: actions/checkout@v4
 
@@ -33,15 +35,17 @@ jobs:
         run: ls -la dist/
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          preCommands: |
-            wrangler --version
-            wrangler whoami 2>&1 || true
-            echo "--- Build artifacts exist ---"
-            test -f dist/index.html && echo "OK: dist/index.html"
-            test -d dist/assets && echo "OK: dist/assets/"
-          command: pages deploy dist --project-name=me-workbench --branch=main --verbose 2>&1
-          quiet: false
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -x
+          echo "--- Wrangler version ---"
+          npx wrangler@latest --version
+          echo "--- Auth check ---"
+          npx wrangler@latest whoami 2>&1 || true
+          echo "--- Deploy ---"
+          npx wrangler@latest pages deploy dist \
+            --project-name=me-workbench \
+            --branch=main \
+            --log-level=debug
