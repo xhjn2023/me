@@ -18,23 +18,25 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
       - name: Build
         run: npm run build
         env:
-          # Cloudflare Pages 构建标记，使 vite.config.js 使用根路径 base
           CF_PAGES: '1'
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: me-workbench
-          directory: dist
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler pages deploy dist \
+            --project-name=me-workbench \
+            --branch=main
