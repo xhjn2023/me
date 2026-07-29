@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { coursesApi, booksApi, studyRecordsApi, todayStr, getStreakDays } from '../db/database'
 import { useAsyncData } from '../hooks/useAsyncData'
 
@@ -40,12 +40,53 @@ const QUOTES = [
   { text: '今日事，今日毕。', author: '古训' }
 ]
 
-function getDailyQuote() {
+function getDayOfYear() {
   const now = new Date()
   const start = new Date(now.getFullYear(), 0, 0)
   const diff = now - start
-  const dayOfYear = Math.floor(diff / 86400000)
-  return QUOTES[dayOfYear % QUOTES.length]
+  return Math.floor(diff / 86400000)
+}
+
+function getDailyQuoteIndex() {
+  return getDayOfYear() % QUOTES.length
+}
+
+// 每日英语六级单词
+const CET6_WORDS = [
+  { word: 'abandon', phonetic: '/əˈbændən/', meaning: 'v. 放弃；抛弃', sentence: 'He abandoned his old car and bought a new one.', translation: '他废弃了旧车，买了一辆新的。' },
+  { word: 'abstract', phonetic: '/ˈæbstrækt/', meaning: 'adj. 抽象的 n. 摘要', sentence: 'The concept is too abstract for young children to grasp.', translation: '这个概念对幼儿来说太抽象而难以理解。' },
+  { word: 'accommodate', phonetic: '/əˈkɒmədeɪt/', meaning: 'v. 容纳；适应', sentence: 'The hotel can accommodate up to 500 guests.', translation: '这家酒店最多可容纳 500 位客人。' },
+  { word: 'ambiguous', phonetic: '/æmˈbɪɡjuəs/', meaning: 'adj. 模糊的；含糊的', sentence: 'His reply was ambiguous, leaving us unsure what to do.', translation: '他的回答含糊不清，让我们不知所措。' },
+  { word: 'anticipate', phonetic: '/ænˈtɪsɪpeɪt/', meaning: 'v. 预期；预料', sentence: 'We anticipate a busy season ahead.', translation: '我们预计接下来的季节会很繁忙。' },
+  { word: 'arbitrary', phonetic: '/ˈɑːbɪtrəri/', meaning: 'adj. 任意的；武断的', sentence: 'The decision seemed arbitrary and unfair.', translation: '这个决定看起来既武断又不公平。' },
+  { word: 'ascertain', phonetic: '/ˌæsəˈteɪn/', meaning: 'v. 查明；弄清', sentence: 'The police tried to ascertain the truth of his story.', translation: '警方试图查明他陈述的真相。' },
+  { word: 'authentic', phonetic: '/ɔːˈθentɪk/', meaning: 'adj. 真正的；真实的', sentence: 'This painting is an authentic work by Picasso.', translation: '这幅画是毕加索的真迹。' },
+  { word: 'autonomous', phonetic: '/ɔːˈtɒnəməs/', meaning: 'adj. 自主的；自治的', sentence: 'The region became fully autonomous last year.', translation: '该地区去年实现了完全自治。' },
+  { word: 'bizarre', phonetic: '/bɪˈzɑː(r)/', meaning: 'adj. 奇异的；古怪的', sentence: 'He had a bizarre habit of collecting umbrellas.', translation: '他有一个收集雨伞的古怪习惯。' },
+  { word: 'boost', phonetic: '/buːst/', meaning: 'v. 促进；提升 n. 推动', sentence: 'The new policy will boost economic growth.', translation: '新政策将促进经济增长。' },
+  { word: 'breed', phonetic: '/briːd/', meaning: 'v. 繁殖；培育 n. 品种', sentence: 'These dogs were bred for hunting.', translation: '这些狗是为狩猎而培育的品种。' },
+  { word: 'capable', phonetic: '/ˈkeɪpəbl/', meaning: 'adj. 有能力的；能干的', sentence: 'She is capable of solving complex problems.', translation: '她有能力解决复杂的问题。' },
+  { word: 'chronic', phonetic: '/ˈkrɒnɪk/', meaning: 'adj. 慢性的；长期的', sentence: 'He suffers from chronic back pain.', translation: '他患有慢性背痛。' },
+  { word: 'coherent', phonetic: '/kəʊˈhɪərənt/', meaning: 'adj. 连贯的；一致的', sentence: 'Her argument was clear and coherent.', translation: '她的论点清晰且连贯。' },
+  { word: 'commence', phonetic: '/kəˈmens/', meaning: 'v. 开始；着手', sentence: 'The ceremony will commence at noon.', translation: '仪式将于正午开始。' },
+  { word: 'compatible', phonetic: '/kəmˈpætəbl/', meaning: 'adj. 兼容的；相容的', sentence: 'This software is compatible with all operating systems.', translation: '这款软件兼容所有操作系统。' },
+  { word: 'compile', phonetic: '/kəmˈpaɪl/', meaning: 'v. 编纂；汇编', sentence: 'She compiled a list of useful resources.', translation: '她编纂了一份有用的资源清单。' },
+  { word: 'complement', phonetic: '/ˈkɒmplɪment/', meaning: 'v. 补充 n. 补足物', sentence: 'The wine complements the dish perfectly.', translation: '这款葡萄酒与这道菜相得益彰。' },
+  { word: 'comply', phonetic: '/kəmˈplaɪ/', meaning: 'v. 遵守；服从', sentence: 'All employees must comply with safety regulations.', translation: '所有员工都必须遵守安全规定。' },
+  { word: 'concurrent', phonetic: '/kənˈkʌrənt/', meaning: 'adj. 同时发生的', sentence: 'The two events were purely concurrent, not related.', translation: '这两件事只是同时发生，并无关联。' },
+  { word: 'concise', phonetic: '/kənˈsaɪs/', meaning: 'adj. 简明的；简洁的', sentence: 'Please give a concise summary of the report.', translation: '请对报告做一份简明的概述。' },
+  { word: 'consensus', phonetic: '/kənˈsensəs/', meaning: 'n. 共识；一致意见', sentence: 'They reached a consensus after long discussion.', translation: '经过长期讨论，他们达成了共识。' },
+  { word: 'constitute', phonetic: '/ˈkɒnstɪtjuːt/', meaning: 'v. 构成；组成', sentence: 'These facts constitute a serious threat.', translation: '这些事实构成了严重威胁。' },
+  { word: 'contemplate', phonetic: '/ˈkɒntəmpleɪt/', meaning: 'v. 沉思；考虑', sentence: 'He sat by the river, contemplating his future.', translation: '他坐在河边，思考自己的未来。' },
+  { word: 'deteriorate', phonetic: '/dɪˈtɪəriəreɪt/', meaning: 'v. 恶化；变坏', sentence: 'His health began to deteriorate rapidly.', translation: '他的健康状况开始迅速恶化。' },
+  { word: 'discreet', phonetic: '/dɪˈskriːt/', meaning: 'adj. 谨慎的；得体的', sentence: 'Be discreet when handling sensitive information.', translation: '处理敏感信息时要谨慎。' },
+  { word: 'dominant', phonetic: '/ˈdɒmɪnənt/', meaning: 'adj. 占主导的；支配的', sentence: 'The dominant team won the championship easily.', translation: '这支强队轻松赢得了冠军。' },
+  { word: 'elaborate', phonetic: '/ɪˈlæbərət/', meaning: 'v. 详细说明 adj. 精细的', sentence: 'Could you elaborate on your proposal?', translation: '你能详细说明一下你的提案吗？' },
+  { word: 'endeavor', phonetic: '/ɪnˈdevə(r)/', meaning: 'v. 努力 n. 尽力', sentence: 'We will endeavor to finish the work on time.', translation: '我们将尽力按时完成工作。' }
+]
+
+function getDailyWord() {
+  return CET6_WORDS[getDayOfYear() % CET6_WORDS.length]
 }
 
 export default function Study() {
@@ -53,7 +94,12 @@ export default function Study() {
   const [weekStudyHours, setWeekStudyHours] = useState(0)
   const [streakDays, setStreakDays] = useState(0)
 
-  const dailyQuote = useMemo(() => getDailyQuote(), [])
+  // 格言：默认按当天轮换，可点击刷新切换下一条
+  const [quoteIndex, setQuoteIndex] = useState(getDailyQuoteIndex)
+  const dailyQuote = QUOTES[quoteIndex]
+  const refreshQuote = () => setQuoteIndex(i => (i + 1) % QUOTES.length)
+
+  const dailyWord = getDailyWord()
 
   const { data: courses } = useAsyncData(() => coursesApi.getAll(activeTab === '全部' ? undefined : activeTab), [activeTab])
 
@@ -81,15 +127,39 @@ export default function Study() {
         </p>
       </div>
 
-      {/* 每日精选格言 */}
+      {/* 每日精选格言（点击可刷新） */}
       <div className="px-4 mt-4">
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-2xl p-4 card-shadow">
+        <div
+          onClick={refreshQuote}
+          className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-2xl p-4 card-shadow cursor-pointer active:scale-[0.98] transition-transform"
+          title="点击换一条"
+        >
           <div className="flex items-start gap-3">
             <span className="text-2xl flex-shrink-0">💬</span>
             <div className="flex-1">
               <p className="text-sm text-gray-700 leading-relaxed">{dailyQuote.text}</p>
               <p className="text-xs text-amber-600 mt-2 text-right">—— {dailyQuote.author}</p>
             </div>
+            <span className="text-xs text-amber-500 flex-shrink-0 self-start mt-0.5">↻ 换</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 每日英语六级单词 */}
+      <div className="px-4 mt-3">
+        <div className="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-100 rounded-2xl p-4 card-shadow">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">🔤</span>
+            <span className="text-xs text-sky-700 font-medium">每日六级单词</span>
+          </div>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h3 className="text-xl font-bold text-gray-800">{dailyWord.word}</h3>
+            <span className="text-sm text-gray-500">{dailyWord.phonetic}</span>
+          </div>
+          <p className="text-sm text-gray-600 mt-1">{dailyWord.meaning}</p>
+          <div className="mt-3 space-y-1">
+            <p className="text-sm text-gray-700 italic leading-relaxed">{dailyWord.sentence}</p>
+            <p className="text-xs text-gray-500 leading-relaxed">{dailyWord.translation}</p>
           </div>
         </div>
       </div>
