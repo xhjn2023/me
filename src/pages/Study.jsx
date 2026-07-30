@@ -270,38 +270,44 @@ export default function Study() {
               const outline = COURSE_OUTLINES[course.title]
               const expanded = expandedCourse === course.id
               const isPhoto = course.category === '摄影'
+              const progress = course.progress || 0
+              const buttonLabel = progress === 0 ? '开始学习' : progress >= 100 ? '复习课程' : '继续学习'
               return (
                 <Card key={course.id} className="overflow-hidden">
                   <div
-                    className={`h-16 flex items-center px-4 bg-gradient-to-r ${outline?.cover || 'from-emerald-400 to-teal-400'} cursor-pointer`}
-                    onClick={() => outline && toggleCourse(course.id)}
+                    className={`h-16 flex items-center px-4 bg-gradient-to-r ${outline?.cover || 'from-emerald-400 to-teal-400'}`}
                   >
                     <Icon name={outline?.icon || 'play'} size={22} className="text-white" />
-                    {outline && (
-                      <span className={`ml-auto text-white/80 transition-transform ${expanded ? 'rotate-180' : ''}`}>
-                        <Icon name="chevronDown" size={18} />
+                    {isPhoto && (
+                      <span className="ml-auto px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-white/25 text-white border border-white/30">
+                        摄影
                       </span>
                     )}
                   </div>
-                  <div
-                    className={`p-4 ${outline ? 'cursor-pointer' : ''}`}
-                    onClick={() => outline && toggleCourse(course.id)}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-semibold text-slate-800 flex-1">{course.title}</h3>
-                      {isPhoto && (
-                        <span className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-rose-50 text-rose-600 border border-rose-100 flex-shrink-0">
-                          摄影
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
+                  <div className="p-4">
+                    <h3 className="font-semibold text-slate-800">{course.title}</h3>
+                    {outline?.intro && (
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">{outline.intro}</p>
+                    )}
+                    <p className="text-sm text-slate-500 mt-2 flex items-center gap-1">
                       <Icon name="user" size={12} />
                       {course.instructor} · {course.currentLessons}/{course.totalLessons}课时
                     </p>
                     <div className="mt-3">
-                      <ProgressBar value={course.progress} color="emerald" showLabel />
+                      <ProgressBar value={progress} color="emerald" showLabel />
                     </div>
+                    <button
+                      onClick={() => outline && toggleCourse(course.id)}
+                      className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-sm font-medium transition shadow-sm shadow-emerald-500/20"
+                    >
+                      <Icon name={progress === 0 ? 'play' : 'bookOpen'} size={14} />
+                      {buttonLabel}
+                      {outline && (
+                        <span className={`ml-1 transition-transform ${expanded ? 'rotate-180' : ''}`}>
+                          <Icon name="chevronDown" size={14} />
+                        </span>
+                      )}
+                    </button>
                   </div>
                   {/* 章节大纲展开 */}
                   {expanded && outline && (
