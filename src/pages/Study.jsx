@@ -3,10 +3,11 @@ import { coursesApi, booksApi, studyRecordsApi, todayStr, getStreakDays } from '
 import { useAsyncData } from '../hooks/useAsyncData'
 import {
   PageHeader, Card, Stat, ChipGroup, EmptyState, LoadingState,
-  SectionHeader, ProgressBar, Icon
+  SectionHeader, ProgressBar, Icon, showToast
 } from '../components/ui'
+import { COURSE_OUTLINES } from './study/courses'
 
-const CATEGORIES = ['全部', '人事专业', '超市经营', '内心能量', '人生智慧']
+const CATEGORIES = ['全部', '人事专业', '超市经营', '内心能量', '人生智慧', '摄影']
 
 // 每日精选格言列表
 const QUOTES = [
@@ -93,10 +94,39 @@ function getDailyWord() {
   return CET6_WORDS[getDayOfYear() % CET6_WORDS.length]
 }
 
+// 单词发音：Web Speech API，零依赖
+function speakWord(word) {
+  if (!('speechSynthesis' in window)) {
+    showToast('当前浏览器不支持语音播放', 'error')
+    return
+  }
+  window.speechSynthesis.cancel()
+  const u = new SpeechSynthesisUtterance(word)
+  u.lang = 'en-US'
+  u.rate = 0.85
+  u.pitch = 1
+  window.speechSynthesis.speak(u)
+}
+
+// 读例句
+function speakSentence(sentence) {
+  if (!('speechSynthesis' in window)) {
+    showToast('当前浏览器不支持语音播放', 'error')
+    return
+  }
+  window.speechSynthesis.cancel()
+  const u = new SpeechSynthesisUtterance(sentence)
+  u.lang = 'en-US'
+  u.rate = 0.75
+  u.pitch = 1
+  window.speechSynthesis.speak(u)
+}
+
 export default function Study() {
   const [activeTab, setActiveTab] = useState('人事专业')
   const [weekStudyHours, setWeekStudyHours] = useState(0)
   const [streakDays, setStreakDays] = useState(0)
+  const [expandedCourse, setExpandedCourse] = useState(null)
 
   // 格言：默认按当天轮换，可点击刷新切换下一条
   const [quoteIndex, setQuoteIndex] = useState(getDailyQuoteIndex)
@@ -121,6 +151,10 @@ export default function Study() {
 
   const courseList = courses || []
   const bookList = books || []
+
+  function toggleCourse(id) {
+    setExpandedCourse(prev => prev === id ? null : id)
+  }
 
   return (
     <div className="animate-fade-in pb-24">
@@ -153,7 +187,7 @@ export default function Study() {
         </div>
       </div>
 
-      {/* 每日英语六级单词 */}
+      {/* 每日英语六级单词（含发音） */}
       <div className="px-4 mt-3">
         <div className="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-100 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
@@ -165,10 +199,27 @@ export default function Study() {
           <div className="flex items-baseline gap-2 flex-wrap">
             <h3 className="text-xl font-bold text-slate-800">{dailyWord.word}</h3>
             <span className="text-sm text-slate-500">{dailyWord.phonetic}</span>
+            <button
+              onClick={() => speakWord(dailyWord.word)}
+              className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white text-xs font-medium transition shadow-sm shadow-sky-500/20"
+              aria-label="朗读单词"
+            >
+              <Icon name="volume2" size={13} /> 发音
+            </button>
           </div>
           <p className="text-sm text-slate-600 mt-1">{dailyWord.meaning}</p>
           <div className="mt-3 space-y-1">
-            <p className="text-sm text-slate-700 italic leading-relaxed">{dailyWord.sentence}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm text-slate-700 italic leading-relaxed flex-1">{dailyWord.sentence}</p>
+              <button
+                onClick={() => speakSentence(dailyWord.sentence)}
+                className="text-sky-500 hover:text-sky-600 transition flex-shrink-0 mt-0.5 p-1 rounded-md hover:bg-sky-50"
+                aria-label="朗读例句"
+                title="朗读例句"
+              >
+                <Icon name="volume2" size={14} />
+              </button>
+            </div>
             <p className="text-xs text-slate-500 leading-relaxed">{dailyWord.translation}</p>
           </div>
         </div>
@@ -211,27 +262,81 @@ export default function Study() {
               <EmptyState
                 icon="bookOpen"
                 title="暂无课程"
-                description="切换分类或添加新课程"
+                description="切换分类查看课程"
               />
             </Card>
           ) : (
-            courseList.map(course => (
-              <Card key={course.id} className="overflow-hidden">
-                <div className="bg-gradient-to-r from-emerald-400 to-teal-400 h-16 flex items-center px-4">
-                  <Icon name="play" size={22} className="text-white" />
-                </div>
-                <div className="p-4">
-                  <h3 className="font-semibold text-slate-800">{course.title}</h3>
-                  <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
-                    <Icon name="user" size={12} />
-                    {course.instructor} · {course.currentLessons}/{course.totalLessons}课时
-                  </p>
-                  <div className="mt-3">
-                    <ProgressBar value={course.progress} color="emerald" showLabel />
+            courseList.map(course => {
+              const outline = COURSE_OUTLINES[course.title]
+              const expanded = expandedCourse === course.id
+              const isPhoto = course.category === '摄影'
+              return (
+                <Card key={course.id} className="overflow-hidden">
+                  <div
+                    className={`h-16 flex items-center px-4 bg-gradient-to-r ${outline?.cover || 'from-emerald-400 to-teal-400'} cursor-pointer`}
+                    onClick={() => outline && toggleCourse(course.id)}
+                  >
+                    <Icon name={outline?.icon || 'play'} size={22} className="text-white" />
+                    {outline && (
+                      <span className={`ml-auto text-white/80 transition-transform ${expanded ? 'rotate-180' : ''}`}>
+                        <Icon name="chevronDown" size={18} />
+                      </span>
+                    )}
                   </div>
-                </div>
-              </Card>
-            ))
+                  <div
+                    className={`p-4 ${outline ? 'cursor-pointer' : ''}`}
+                    onClick={() => outline && toggleCourse(course.id)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-slate-800 flex-1">{course.title}</h3>
+                      {isPhoto && (
+                        <span className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-rose-50 text-rose-600 border border-rose-100 flex-shrink-0">
+                          摄影
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
+                      <Icon name="user" size={12} />
+                      {course.instructor} · {course.currentLessons}/{course.totalLessons}课时
+                    </p>
+                    <div className="mt-3">
+                      <ProgressBar value={course.progress} color="emerald" showLabel />
+                    </div>
+                  </div>
+                  {/* 章节大纲展开 */}
+                  {expanded && outline && (
+                    <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3 animate-fade-in">
+                      <p className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1">
+                        <Icon name="list" size={12} /> 课程大纲 · 共 {outline.lessons.length} 节
+                      </p>
+                      <div className="space-y-1.5">
+                        {outline.lessons.map((lesson, i) => {
+                          const done = i < course.currentLessons
+                          return (
+                            <div
+                              key={i}
+                              className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm ${
+                                done ? 'text-slate-400' : 'text-slate-700'
+                              }`}
+                            >
+                              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${
+                                done
+                                  ? 'bg-emerald-100 text-emerald-600'
+                                  : 'bg-slate-200 text-slate-500'
+                              }`}>
+                                {done ? <Icon name="check" size={10} /> : i + 1}
+                              </span>
+                              <span className={`flex-1 ${done ? 'line-through' : ''}`}>{lesson.title}</span>
+                              <span className="text-[11px] text-slate-400">{lesson.duration}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )
+            })
           )}
         </div>
       </div>
