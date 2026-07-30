@@ -1,7 +1,8 @@
 import { tasksApi, studyRecordsApi, todayStr, formatDateCN, getStreakDays } from '../db/database'
 import { useAsyncData } from '../hooks/useAsyncData'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PageHeader, Stat, Card, Icon } from '../components/ui'
+import { HEALING_QUOTES } from './healingQuotes'
 
 const MODULES = [
   { key: 'work', icon: 'briefcase', label: '工作', desc: '店长 · 人事 · 财务', color: 'blue' },
@@ -53,6 +54,15 @@ export default function Dashboard({ onNavigate }) {
   const tasks = todayTasks || []
   const doneCount = tasks.filter(t => t.done).length
   const totalCount = tasks.length
+
+  // 治愈短句：按天轮换，点击刷新换下一条
+  const dayIndex = useMemo(() => {
+    const now = new Date()
+    const start = new Date(now.getFullYear(), 0, 0)
+    return Math.floor((now - start) / 86400000) % HEALING_QUOTES.length
+  }, [])
+  const [healingIdx, setHealingIdx] = useState(dayIndex)
+  const healingQuote = HEALING_QUOTES[healingIdx]
 
   const now = new Date()
   const hour = now.getHours()
@@ -114,6 +124,29 @@ export default function Dashboard({ onNavigate }) {
               <p className="text-[10px] text-slate-400 text-left mt-0.5 leading-tight line-clamp-1">{m.desc}</p>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* 治愈板块：滚动短句 */}
+      <div className="px-4 mt-5">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-rose-50 to-teal-50 border border-rose-100/60 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/70 flex items-center justify-center text-rose-400 flex-shrink-0">
+              <Icon name="moon" size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-medium text-rose-400 mb-1 tracking-wide">HEALING · 治愈</p>
+              <p className="text-sm text-slate-600 leading-relaxed">{healingQuote}</p>
+            </div>
+            <button
+              onClick={() => setHealingIdx(i => (i + 1) % HEALING_QUOTES.length)}
+              className="text-rose-300 hover:text-rose-500 transition flex-shrink-0 mt-1.5 p-1 rounded-md hover:bg-white/50"
+              aria-label="换一条"
+              title="换一条"
+            >
+              <Icon name="refreshCw" size={14} />
+            </button>
+          </div>
         </div>
       </div>
 
