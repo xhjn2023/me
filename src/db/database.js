@@ -209,6 +209,12 @@ export const lifeRecordsApi = {
     if (error) throw error
     return result
   },
+  async update(id, data) {
+    const userId = await uid()
+    const { data: row, error } = await supabase.from('life_records').update(toDbRow(data)).eq('id', id).eq('user_id', userId).select().single()
+    if (error) throw error
+    return row
+  },
   async delete(id) {
     const userId = await uid()
     const { error } = await supabase.from('life_records').delete().eq('id', id).eq('user_id', userId)

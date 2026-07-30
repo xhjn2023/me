@@ -2,24 +2,18 @@ import { useState } from 'react'
 import { lifeRecordsApi, todayStr } from '../db/database'
 import { useAsyncData } from '../hooks/useAsyncData'
 import {
-  PageHeader, Card, Button, Input, Textarea, ChipGroup,
-  EmptyState, LoadingState, Icon
+  PageHeader, Card, Button, Textarea, BottomSheet,
+  EmptyState, LoadingState, Icon, ConfirmDialog, showToast
 } from '../components/ui'
 
-// 类型顺序固定不变：日记 → 运动 → 饮食 → 睡眠 → 健康 → 娱乐
-const TYPES = [
-  { key: '日记', icon: 'penLine', color: 'bg-amber-50 text-amber-600' },
-  { key: '运动', icon: 'flame', color: 'bg-orange-50 text-orange-600' },
-  { key: '饮食', icon: 'utensils', color: 'bg-orange-50 text-orange-600' },
-  { key: '睡眠', icon: 'moon', color: 'bg-blue-50 text-blue-600' },
-  { key: '健康', icon: 'heartPulse', color: 'bg-rose-50 text-rose-600' },
-  { key: '娱乐', icon: 'gamepad', color: 'bg-violet-50 text-violet-600' }
-]
-
+// 生活模块已精简为「日记·笔记」：仅承载文字笔记的增删改查
+// 历史健康追踪分类（运动/饮食/睡眠/健康/娱乐）已移除，数据库 type 字段保留 '日记' 兼容存量数据
 export default function Life() {
   const [selectedDate, setSelectedDate] = useState(todayStr())
   const [input, setInput] = useState('')
-  const [type, setType] = useState('日记')
+  const [editing, setEditing] = useState(null)   // { id, content }
+  const [editText, setEditText] = useState('')
+  const [confirmId, setConfirmId] = useState(null)
 
   const { data: records, loading, refresh } = useAsyncData(
     () => lifeRecordsApi.getByDate(selectedDate),
@@ -29,39 +23,81 @@ export default function Life() {
 
   async function addRecord() {
     const text = input.trim()
-    if (!text) return
-    await lifeRecordsApi.add({
-      date: selectedDate,
-      type,
-      content: text,
-      createdAt: Date.now()
-    })
-    setInput('')
-    refresh()
-    window.dispatchEvent(new Event('app-data-changed'))
+    if (!text) {
+      showToast('请输入笔记内容', 'info')
+      return
+    }
+    try {
+      await lifeRecordsApi.add({
+        date: selectedDate,
+        type: '日记',
+        content: text,
+        createdAt: Date.now()
+      })
+      setInput('')
+      refresh()
+      window.dispatchEvent(new Event('app-data-changed'))
+      showToast('已记录', 'success')
+    } catch {
+      showToast('保存失败', 'error')
+    }
+  }
+
+  function openEdit(record) {
+    setEditing({ id: record.id, content: record.content })
+    setEditText(record.content)
+  }
+
+  function closeEdit() {
+    setEditing(null)
+    setEditText('')
+  }
+
+  async function saveEdit() {
+    const text = editText.trim()
+    if (!text) {
+      showToast('内容不能为空', 'info')
+      return
+    }
+    if (text === editing.content) {
+      closeEdit()
+      return
+    }
+    try {
+      await lifeRecordsApi.update(editing.id, { content: text })
+      refresh()
+      window.dispatchEvent(new Event('app-data-changed'))
+      showToast('已更新', 'success')
+      closeEdit()
+    } catch {
+      showToast('更新失败', 'error')
+    }
   }
 
   async function deleteRecord(id) {
-    await lifeRecordsApi.delete(id)
-    refresh()
-    window.dispatchEvent(new Event('app-data-changed'))
+    try {
+      await lifeRecordsApi.delete(id)
+      refresh()
+      window.dispatchEvent(new Event('app-data-changed'))
+      showToast('已删除', 'success')
+    } catch {
+      showToast('删除失败', 'error')
+    }
+    setConfirmId(null)
   }
 
-  // 仅展示有记录的分组（过滤空分组）
-  const groupedRecords = TYPES
-    .map(t => ({
-      ...t,
-      records: recordsList.filter(r => r.type === t.key)
-    }))
-    .filter(g => g.records.length > 0)
+  function formatTime(ts) {
+    if (!ts) return ''
+    return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
 
   return (
     <div className="animate-fade-in pb-24">
       <PageHeader
-        title="生活"
-        subtitle="记录健康生活每一天"
+        title="日记·笔记"
+        subtitle="记录日常思绪与随笔"
         accent="life"
-        icon="leaf"
+        icon="notebookPen"
         actions={
           <input
             type="date"
@@ -73,128 +109,114 @@ export default function Life() {
         }
       />
 
-      {/* 添加记录卡片 */}
+      {/* 快速录入区域：多行文本框 + 右侧加号按钮直接保存 */}
       <div className="px-4 mt-4">
-        <Card className="p-4">
-          <ChipGroup
-            items={TYPES.map(t => ({ value: t.key, label: t.key }))}
-            value={type}
-            onChange={setType}
-            color="teal"
-            className="mb-3"
-          />
+        <Card className="p-3">
           <div className="flex gap-2 items-start">
-            {type === '日记' ? (
-              <div className="flex-1">
-                <Textarea
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  placeholder="写下今天的想法、感受..."
-                  rows={3}
-                />
-              </div>
-            ) : (
-              <div className="flex-1">
-                <Input
-                  type="text"
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addRecord()}
-                  placeholder={`记录${type}内容...`}
-                />
-              </div>
-            )}
+            <div className="flex-1">
+              <Textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addRecord()
+                }}
+                placeholder="记录此刻的想法..."
+                rows={2}
+                className="border-transparent bg-slate-50 focus:bg-white"
+              />
+            </div>
             <Button
               onClick={addRecord}
               size="icon"
               icon="plus"
-              aria-label="添加记录"
+              aria-label="添加笔记"
               className="self-start h-10 w-10 bg-teal-500 hover:bg-teal-600 active:bg-teal-700 shadow-teal-500/20 flex-shrink-0"
             />
           </div>
         </Card>
       </div>
 
-      {/* 分组记录 */}
-      <div className="px-4 mt-4 space-y-4">
+      {/* 笔记列表：按 created_at 倒序（API 已排序） */}
+      <div className="px-4 mt-4 space-y-2.5">
         {loading ? (
-          <Card className="p-4">
-            <LoadingState />
-          </Card>
-        ) : groupedRecords.length === 0 ? (
+          <Card className="p-4"><LoadingState /></Card>
+        ) : recordsList.length === 0 ? (
           <Card>
             <EmptyState
-              icon="leaf"
-              title="今日暂无记录"
-              description="选择类别，记录你的第一个生活点滴"
+              icon="notebookPen"
+              title="今日暂无笔记"
+              description="在上方输入框写下第一段思绪"
             />
           </Card>
         ) : (
-          groupedRecords.map(group => (
-            <Card key={group.key} className="overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${group.color}`}>
-                    <Icon name={group.icon} size={15} />
-                  </span>
-                  <span className="font-medium text-slate-700 text-sm">{group.key}</span>
+          recordsList.map(record => (
+            <Card key={record.id} className="p-3.5 hover:border-slate-300 transition">
+              <div className="flex items-start gap-3">
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-teal-50 text-teal-600 flex-shrink-0 mt-0.5">
+                  <Icon name="penLine" size={15} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
+                    {record.content}
+                  </p>
+                  {record.created_at && (
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      {formatTime(record.created_at)}
+                    </p>
+                  )}
                 </div>
-                <span className="text-xs text-slate-400">{group.records.length} 项</span>
-              </div>
-              <div className="p-3 space-y-2">
-                {group.records.map(record => (
-                  <div
-                    key={record.id}
-                    className={`p-2.5 bg-slate-50 rounded-xl ${
-                      group.key === '日记'
-                        ? 'flex flex-col gap-1.5'
-                        : 'flex items-center justify-between'
-                    }`}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    onClick={() => openEdit(record)}
+                    className="text-slate-300 hover:text-teal-500 transition-colors p-1.5 rounded-md hover:bg-teal-50"
+                    aria-label="编辑"
                   >
-                    {group.key === '日记' ? (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${group.color}`}>
-                            <Icon name={group.icon} size={16} />
-                          </span>
-                          <button
-                            onClick={() => deleteRecord(record.id)}
-                            className="text-slate-300 hover:text-rose-500 transition-colors p-1"
-                            aria-label="删除"
-                          >
-                            <Icon name="trash" size={14} />
-                          </button>
-                        </div>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap pl-10">
-                          {record.content}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${group.color}`}>
-                            <Icon name={group.icon} size={16} />
-                          </span>
-                          <span className="text-sm text-slate-700 break-words">
-                            {record.content}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => deleteRecord(record.id)}
-                          className="text-slate-300 hover:text-rose-500 transition-colors p-1 flex-shrink-0"
-                          aria-label="删除"
-                        >
-                          <Icon name="trash" size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                ))}
+                    <Icon name="edit" size={14} />
+                  </button>
+                  <button
+                    onClick={() => setConfirmId(record.id)}
+                    className="text-slate-300 hover:text-rose-500 transition-colors p-1.5 rounded-md hover:bg-rose-50"
+                    aria-label="删除"
+                  >
+                    <Icon name="trash" size={14} />
+                  </button>
+                </div>
               </div>
             </Card>
           ))
         )}
       </div>
+
+      {/* 编辑弹层：BottomSheet 作为「完整新建/编辑笔记页面」 */}
+      <BottomSheet
+        open={!!editing}
+        onClose={closeEdit}
+        title="编辑笔记"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button variant="secondary" size="sm" onClick={closeEdit}>取消</Button>
+            <Button variant="primary" size="sm" icon="check" onClick={saveEdit}>保存</Button>
+          </div>
+        }
+      >
+        <Textarea
+          value={editText}
+          onChange={e => setEditText(e.target.value)}
+          placeholder="编辑笔记内容..."
+          rows={8}
+          autoFocus
+          className="border-slate-200 bg-slate-50"
+        />
+      </BottomSheet>
+
+      <ConfirmDialog
+        open={!!confirmId}
+        onClose={() => setConfirmId(null)}
+        onConfirm={() => deleteRecord(confirmId)}
+        title="删除这条笔记？"
+        message="删除后无法恢复"
+        confirmText="删除"
+      />
     </div>
   )
 }
