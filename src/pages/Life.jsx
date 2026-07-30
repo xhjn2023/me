@@ -1,30 +1,55 @@
 import { useState } from 'react'
-import { lifeRecordsApi, todayStr } from '../db/database'
+import { lifeRecordsApi, todayStr, formatDateCN } from '../db/database'
 import { useAsyncData } from '../hooks/useAsyncData'
 import {
-  PageHeader, Card, Button, Textarea, BottomSheet,
-  EmptyState, LoadingState, Icon, ConfirmDialog, showToast
+  Card, Button, Icon, EmptyState, LoadingState, ErrorState,
+  BottomSheet, showToast
 } from '../components/ui'
+import NoteCard from './life/NoteCard'
+import NoteEditor from './life/NoteEditor'
+import NoteCalendar from './life/NoteCalendar'
+import NoteSearch from './life/NoteSearch'
+import NotePoster from './life/NotePoster'
 
-// 生活模块已精简为「日记·笔记」：仅承载文字笔记的增删改查
-// 历史健康追踪分类（运动/饮食/睡眠/健康/娱乐）已移除，数据库 type 字段保留 '日记' 兼容存量数据
+// 生活模块「日记·笔记」：轻量化随笔记事本
+// - 顶部浅薄荷绿标题栏 + 左上角「●生活」胶囊
+// - 快速录入 + 完整编辑页（心情/标签/创建时间）
+// - 列表卡片支持置顶/收藏/归档/海报/长按操作
 export default function Life() {
   const [selectedDate, setSelectedDate] = useState(todayStr())
-  const [input, setInput] = useState('')
-  const [editing, setEditing] = useState(null)   // { id, content }
-  const [editText, setEditText] = useState('')
-  const [confirmId, setConfirmId] = useState(null)
+  const [quickInput, setQuickInput] = useState('')
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorNote, setEditorNote] = useState(null)
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [posterNote, setPosterNote] = useState(null)
+  const [archivedOpen, setArchivedOpen] = useState(false)
+  const [archivedList, setArchivedList] = useState([])
+  const [archivedLoading, setArchivedLoading] = useState(false)
 
-  const { data: records, loading, refresh } = useAsyncData(
-    () => lifeRecordsApi.getByDate(selectedDate),
+  // 在线优先：失败时返回空数组，UI 降级展示空状态而非崩溃
+  const { data: records, loading, error, refresh } = useAsyncData(
+    () => lifeRecordsApi.getByDate(selectedDate).catch(() => []),
     [selectedDate]
   )
   const recordsList = records || []
 
-  async function addRecord() {
-    const text = input.trim()
+  // 日期前后切换（不允许超过今天）
+  function shiftDate(days) {
+    const d = new Date(selectedDate)
+    d.setDate(d.getDate() + days)
+    const tz = d.getTimezoneOffset() * 60000
+    const next = new Date(d - tz).toISOString().slice(0, 10)
+    if (next > todayStr()) return
+    setSelectedDate(next)
+  }
+
+  // 快速保存：有文字 → 短句笔记；空白 → 打开完整编辑页
+  async function quickSave() {
+    const text = quickInput.trim()
     if (!text) {
-      showToast('请输入笔记内容', 'info')
+      setEditorNote(null)
+      setEditorOpen(true)
       return
     }
     try {
@@ -34,189 +59,269 @@ export default function Life() {
         content: text,
         createdAt: Date.now()
       })
-      setInput('')
+      setQuickInput('')
       refresh()
       window.dispatchEvent(new Event('app-data-changed'))
       showToast('已记录', 'success')
     } catch {
-      showToast('保存失败', 'error')
+      showToast('保存失败，请检查网络', 'error')
     }
   }
 
-  function openEdit(record) {
-    setEditing({ id: record.id, content: record.content })
-    setEditText(record.content)
+  function openEditor(note) {
+    setEditorNote(note)
+    setEditorOpen(true)
   }
 
-  function closeEdit() {
-    setEditing(null)
-    setEditText('')
-  }
-
-  async function saveEdit() {
-    const text = editText.trim()
-    if (!text) {
-      showToast('内容不能为空', 'info')
-      return
-    }
-    if (text === editing.content) {
-      closeEdit()
-      return
-    }
+  // 卡片更多操作
+  async function handleAction(action, note) {
     try {
-      await lifeRecordsApi.update(editing.id, { content: text })
-      refresh()
+      if (action === 'edit') {
+        openEditor(note)
+      } else if (action === 'pin') {
+        await lifeRecordsApi.togglePin(note.id, !note.pinned)
+        refresh()
+        showToast(note.pinned ? '已取消置顶' : '已置顶', 'success')
+      } else if (action === 'favorite') {
+        await lifeRecordsApi.toggleFavorite(note.id, !note.favorited)
+        refresh()
+        showToast(note.favorited ? '已取消收藏' : '已收藏', 'success')
+      } else if (action === 'poster') {
+        setPosterNote(note)
+      } else if (action === 'archive') {
+        await lifeRecordsApi.toggleArchive(note.id, !note.archived)
+        refresh()
+        showToast(note.archived ? '已取消归档' : '已归档', 'success')
+      } else if (action === 'delete') {
+        await lifeRecordsApi.delete(note.id)
+        refresh()
+        showToast('已删除', 'success')
+      }
       window.dispatchEvent(new Event('app-data-changed'))
-      showToast('已更新', 'success')
-      closeEdit()
     } catch {
-      showToast('更新失败', 'error')
+      showToast('操作失败', 'error')
     }
   }
 
-  async function deleteRecord(id) {
+  async function openArchived() {
+    setArchivedOpen(true)
+    setArchivedLoading(true)
     try {
-      await lifeRecordsApi.delete(id)
-      refresh()
-      window.dispatchEvent(new Event('app-data-changed'))
-      showToast('已删除', 'success')
+      const list = await lifeRecordsApi.getByDate(selectedDate, { includeArchived: true })
+      setArchivedList((list || []).filter(r => r.archived))
     } catch {
-      showToast('删除失败', 'error')
+      setArchivedList([])
+    } finally {
+      setArchivedLoading(false)
     }
-    setConfirmId(null)
   }
 
-  function formatTime(ts) {
-    if (!ts) return ''
-    return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  function openNoteFromSearch(note) {
+    setSearchOpen(false)
+    setSelectedDate(note.date)
+    setTimeout(() => openEditor(note), 150)
   }
+
+  const isToday = selectedDate === todayStr()
 
   return (
     <div className="animate-fade-in pb-24">
-      <PageHeader
-        title="日记·笔记"
-        subtitle="记录日常思绪与随笔"
-        accent="life"
-        icon="notebookPen"
-        actions={
-          <input
-            type="date"
-            value={selectedDate}
-            max={todayStr()}
-            onChange={e => setSelectedDate(e.target.value)}
-            className="px-3 py-1.5 bg-white/20 rounded-xl text-xs text-white backdrop-blur-sm focus:outline-none focus:bg-white/30 transition [color-scheme:light] border border-white/20"
-          />
-        }
-      />
-
-      {/* 快速录入区域：多行文本框 + 右侧加号按钮直接保存 */}
-      <div className="px-4 mt-4">
-        <Card className="p-3">
-          <div className="flex gap-2 items-start">
-            <div className="flex-1">
-              <Textarea
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addRecord()
-                }}
-                placeholder="记录此刻的想法..."
-                rows={2}
-                className="border-transparent bg-slate-50 focus:bg-white"
-              />
-            </div>
-            <Button
-              onClick={addRecord}
-              size="icon"
-              icon="plus"
-              aria-label="添加笔记"
-              className="self-start h-10 w-10 bg-teal-500 hover:bg-teal-600 active:bg-teal-700 shadow-teal-500/20 flex-shrink-0"
-            />
-          </div>
-        </Card>
+      {/* 左上角「●生活」胶囊标签 */}
+      <div className="px-4 pt-3">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-50 text-teal-600 text-xs font-medium border border-teal-100">
+          <span className="w-1.5 h-1.5 rounded-full bg-teal-500" /> 生活
+        </span>
       </div>
 
-      {/* 笔记列表：按 created_at 倒序（API 已排序） */}
-      <div className="px-4 mt-4 space-y-2.5">
-        {loading ? (
+      {/* 标题栏：浅薄荷绿渐变 */}
+      <header className="mx-4 mt-2 px-4 pt-4 pb-3 rounded-2xl bg-gradient-to-br from-teal-50 via-white to-emerald-50 border border-teal-100/60 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <span className="w-9 h-9 rounded-xl bg-white/70 flex items-center justify-center text-teal-600 flex-shrink-0">
+              <Icon name="notebookPen" size={18} />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-slate-800 tracking-tight">日记·笔记</h1>
+              <p className="text-xs text-slate-500 mt-0.5">记录日常思绪与随笔</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-teal-600 hover:bg-white/70 transition"
+              aria-label="搜索"
+            >
+              <Icon name="search" size={16} />
+            </button>
+            <button
+              onClick={openArchived}
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-teal-600 hover:bg-white/70 transition"
+              aria-label="归档"
+            >
+              <Icon name="package" size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* 日期切换：左右箭头 + 中间点击打开日历 */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-teal-100/60">
+          <button
+            onClick={() => shiftDate(-1)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white/70 transition"
+            aria-label="前一天"
+          >
+            <Icon name="chevronLeft" size={16} />
+          </button>
+          <button
+            onClick={() => setCalendarOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/70 transition"
+          >
+            <Icon name="calendar" size={14} className="text-teal-600" />
+            <span className="text-sm font-medium text-slate-700">{formatDateCN(selectedDate)}</span>
+          </button>
+          <button
+            onClick={() => shiftDate(1)}
+            disabled={isToday}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="后一天"
+          >
+            <Icon name="chevronRight" size={16} />
+          </button>
+        </div>
+      </header>
+
+      {/* 快速录入区域 */}
+      <div className="px-4 mt-4">
+        <Card className="p-2.5 flex gap-2 items-center">
+          <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-teal-50 text-teal-500 flex-shrink-0">
+            <Icon name="penLine" size={15} />
+          </span>
+          <input
+            type="text"
+            value={quickInput}
+            onChange={e => setQuickInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') quickSave() }}
+            placeholder="随手记下当下心情、琐事、灵感…"
+            className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+          />
+          <button
+            onClick={quickSave}
+            className="w-9 h-9 rounded-xl bg-teal-500 hover:bg-teal-600 active:bg-teal-700 text-white flex items-center justify-center transition shadow-sm shadow-teal-500/20 flex-shrink-0"
+            aria-label="添加笔记"
+          >
+            <Icon name="plus" size={18} />
+          </button>
+        </Card>
+        <p className="text-[11px] text-slate-400 mt-1.5 px-1">
+          {quickInput.trim() ? '回车或点 + 快速保存' : '空白时点 + 进入完整编辑'}
+        </p>
+      </div>
+
+      {/* 笔记列表 */}
+      <div className="px-4 mt-3 space-y-2.5">
+        {error ? (
+          <Card className="p-4">
+            <ErrorState message="加载失败，请检查网络" onRetry={refresh} />
+          </Card>
+        ) : loading ? (
           <Card className="p-4"><LoadingState /></Card>
         ) : recordsList.length === 0 ? (
-          <Card>
-            <EmptyState
-              icon="notebookPen"
-              title="今日暂无笔记"
-              description="在上方输入框写下第一段思绪"
-            />
-          </Card>
+          <div className="py-12 px-4 text-center">
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-teal-50 to-emerald-50 flex items-center justify-center text-teal-400 mb-4 border border-teal-100">
+              <Icon name="notebookPen" size={36} />
+            </div>
+            <p className="text-base font-medium text-slate-600">今日暂无记录</p>
+            <p className="text-sm text-slate-400 mt-1">试着写下第一件生活小事吧 ✍</p>
+            <Button
+              variant="primary"
+              size="sm"
+              icon="plus"
+              onClick={() => { setEditorNote(null); setEditorOpen(true) }}
+              className="mt-4 bg-teal-500 hover:bg-teal-600 shadow-teal-500/20"
+            >
+              新建笔记
+            </Button>
+          </div>
         ) : (
-          recordsList.map(record => (
-            <Card key={record.id} className="p-3.5 hover:border-slate-300 transition">
-              <div className="flex items-start gap-3">
-                <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-teal-50 text-teal-600 flex-shrink-0 mt-0.5">
-                  <Icon name="penLine" size={15} />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
-                    {record.content}
-                  </p>
-                  {record.created_at && (
-                    <p className="text-[11px] text-slate-400 mt-1.5">
-                      {formatTime(record.created_at)}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  <button
-                    onClick={() => openEdit(record)}
-                    className="text-slate-300 hover:text-teal-500 transition-colors p-1.5 rounded-md hover:bg-teal-50"
-                    aria-label="编辑"
-                  >
-                    <Icon name="edit" size={14} />
-                  </button>
-                  <button
-                    onClick={() => setConfirmId(record.id)}
-                    className="text-slate-300 hover:text-rose-500 transition-colors p-1.5 rounded-md hover:bg-rose-50"
-                    aria-label="删除"
-                  >
-                    <Icon name="trash" size={14} />
-                  </button>
-                </div>
-              </div>
-            </Card>
+          recordsList.map(note => (
+            <NoteCard
+              key={note.id}
+              note={note}
+              onOpen={openEditor}
+              onToggleFavorite={n => handleAction('favorite', n)}
+              onAction={handleAction}
+            />
           ))
         )}
       </div>
 
-      {/* 编辑弹层：BottomSheet 作为「完整新建/编辑笔记页面」 */}
-      <BottomSheet
-        open={!!editing}
-        onClose={closeEdit}
-        title="编辑笔记"
-        footer={
-          <div className="flex gap-2 justify-end">
-            <Button variant="secondary" size="sm" onClick={closeEdit}>取消</Button>
-            <Button variant="primary" size="sm" icon="check" onClick={saveEdit}>保存</Button>
-          </div>
-        }
-      >
-        <Textarea
-          value={editText}
-          onChange={e => setEditText(e.target.value)}
-          placeholder="编辑笔记内容..."
-          rows={8}
-          autoFocus
-          className="border-slate-200 bg-slate-50"
-        />
-      </BottomSheet>
-
-      <ConfirmDialog
-        open={!!confirmId}
-        onClose={() => setConfirmId(null)}
-        onConfirm={() => deleteRecord(confirmId)}
-        title="删除这条笔记？"
-        message="删除后无法恢复"
-        confirmText="删除"
+      {/* 完整编辑页 */}
+      <NoteEditor
+        open={editorOpen}
+        note={editorNote}
+        date={selectedDate}
+        onClose={() => setEditorOpen(false)}
+        onSaved={() => { refresh(); setEditorOpen(false) }}
+        onDeleted={() => { refresh(); setEditorOpen(false) }}
       />
+
+      {/* 日历弹窗 */}
+      <NoteCalendar
+        open={calendarOpen}
+        date={selectedDate}
+        onClose={() => setCalendarOpen(false)}
+        onSelect={d => { setSelectedDate(d); setCalendarOpen(false) }}
+      />
+
+      {/* 全局搜索 */}
+      <NoteSearch
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onOpenNote={openNoteFromSearch}
+      />
+
+      {/* 海报生成 */}
+      <NotePoster
+        open={!!posterNote}
+        note={posterNote}
+        onClose={() => setPosterNote(null)}
+      />
+
+      {/* 归档列表 */}
+      <BottomSheet
+        open={archivedOpen}
+        onClose={() => setArchivedOpen(false)}
+        title={`归档笔记 · ${formatDateCN(selectedDate)}`}
+      >
+        {archivedLoading ? (
+          <LoadingState />
+        ) : archivedList.length === 0 ? (
+          <EmptyState icon="package" title="当日无归档笔记" description="归档后的笔记会显示在这里" />
+        ) : (
+          <div className="space-y-2">
+            {archivedList.map(note => (
+              <div
+                key={note.id}
+                className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition cursor-pointer"
+                onClick={() => { setArchivedOpen(false); openEditor(note) }}
+              >
+                <p className="text-sm text-slate-700 line-clamp-2">{note.content}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[11px] text-slate-400">
+                    {note.created_at && new Date(note.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleAction('archive', note); setArchivedOpen(false) }}
+                    className="text-xs text-teal-600 hover:underline"
+                  >
+                    取消归档
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </BottomSheet>
     </div>
   )
 }

@@ -195,11 +195,26 @@ export const booksApi = {
   }
 }
 
-// ─── Life Records ───
+// ─── Life Records（日记·笔记）───
 export const lifeRecordsApi = {
-  async getByDate(date) {
+  // 取当日笔记：置顶优先 → 创建时间倒序；默认不返回归档
+  async getByDate(date, { includeArchived = false } = {}) {
     const userId = await uid()
-    const { data, error } = await supabase.from('life_records').select('*').eq('user_id', userId).eq('date', date).order('created_at', { ascending: false })
+    let q = supabase.from('life_records').select('*').eq('user_id', userId).eq('date', date)
+    if (!includeArchived) q = q.eq('archived', false)
+    const { data, error } = await q.order('pinned', { ascending: false }).order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  // 全局搜索：支持关键字 / 标签 / 心情 / 仅收藏
+  async search({ keyword = '', tag = '', mood = '', favoritedOnly = false } = {}) {
+    const userId = await uid()
+    let q = supabase.from('life_records').select('*').eq('user_id', userId)
+    if (keyword) q = q.ilike('content', `%${keyword}%`)
+    if (tag) q = q.contains('tags', [tag])
+    if (mood) q = q.eq('mood', mood)
+    if (favoritedOnly) q = q.eq('favorited', true)
+    const { data, error } = await q.order('date', { ascending: false }).order('created_at', { ascending: false }).limit(100)
     if (error) throw error
     return data || []
   },
@@ -219,6 +234,15 @@ export const lifeRecordsApi = {
     const userId = await uid()
     const { error } = await supabase.from('life_records').delete().eq('id', id).eq('user_id', userId)
     if (error) throw error
+  },
+  async togglePin(id, pinned) {
+    return this.update(id, { pinned })
+  },
+  async toggleFavorite(id, favorited) {
+    return this.update(id, { favorited })
+  },
+  async toggleArchive(id, archived) {
+    return this.update(id, { archived })
   }
 }
 
