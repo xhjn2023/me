@@ -35,11 +35,13 @@ CREATE INDEX IF NOT EXISTS idx_work_summaries_type ON work_summaries(type);
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_summaries ENABLE ROW LEVEL SECURITY;
 
--- tasks 策略（替换旧的匿名策略）
+-- tasks 策略（先删除已存在的策略再创建）
 DROP POLICY IF EXISTS "Allow all for anon" ON tasks;
+DROP POLICY IF EXISTS "Users can manage their own tasks" ON tasks;
 CREATE POLICY "Users can manage their own tasks" ON tasks
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- work_summaries 策略
+DROP POLICY IF EXISTS "Users can manage their own summaries" ON work_summaries;
 CREATE POLICY "Users can manage their own summaries" ON work_summaries
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
