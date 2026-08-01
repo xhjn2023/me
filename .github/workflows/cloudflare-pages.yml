@@ -1,8 +1,9 @@
 name: Deploy to Cloudflare Pages
 
+# main 分支 → production 部署；其他分支 → preview 预览部署
 on:
   push:
-    branches: [main]
+    branches: ['**']
   workflow_dispatch:
 
 permissions:
@@ -40,6 +41,8 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set +e
+          BRANCH_NAME="${{ github.ref_name }}"
+
           # 1. 认证检查
           echo "=== 1. Auth check ==="
           npx wrangler@latest whoami 2>&1
@@ -51,12 +54,12 @@ jobs:
             --production-branch=main \
             --yes 2>&1 || true
 
-          # 3. 部署
+          # 3. 部署（main → production，其他分支 → preview）
           echo ""
-          echo "=== 3. Deploy ==="
+          echo "=== 3. Deploy (branch: $BRANCH_NAME) ==="
           DEPLOY_OUT=$(npx wrangler@latest pages deploy dist \
             --project-name=me-workbench \
-            --branch=main 2>&1)
+            --branch="$BRANCH_NAME" 2>&1)
           DEPLOY_CODE=$?
           echo "$DEPLOY_OUT"
           echo "Exit code: $DEPLOY_CODE"
@@ -66,4 +69,16 @@ jobs:
             echo "=== DEPLOY FAILED ==="
             echo "$DEPLOY_OUT"
             exit 1
+          fi
+
+          # 4. 提取预览 URL 并写入 GitHub Actions Summary
+          echo ""
+          echo "=== 4. Extract preview URL ==="
+          PREVIEW_URL=$(echo "$DEPLOY_OUT" | grep -oE 'https://[a-z0-9-]+\.me-workbench\.pages\.dev' | head -n 1)
+          echo "Preview URL: $PREVIEW_URL"
+          if [ -n "$PREVIEW_URL" ]; then
+            echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+            echo "## 🚀 预览地址" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "[$PREVIEW_URL]($PREVIEW_URL)" >> $GITHUB_STEP_SUMMARY
           fi
