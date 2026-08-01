@@ -12,6 +12,14 @@ const TYPE_OPTIONS = [
   { value: 'monthly', label: '月小结' }
 ]
 
+// 本地时区安全：toISOString 是 UTC，直接截取会跨天偏移
+function toLocalDateStr(d) {
+  const tz = d.getTimezoneOffset() * 60000
+  return new Date(d - tz).toISOString().slice(0, 10)
+}
+
+// 返回当前周期：date 为稳定锚点（日=当天 / 周=周一 / 月=1号），
+// 配合 (user_id, type, date) 唯一约���，保证同一周期多次保存落在同一行
 function getPeriodRange(type) {
   const now = new Date()
   const today = todayStr()
@@ -25,18 +33,18 @@ function getPeriodRange(type) {
     const end = new Date(start)
     end.setDate(start.getDate() + 6)
     return {
-      date: today,
-      periodStart: start.toISOString().slice(0, 10),
-      periodEnd: end.toISOString().slice(0, 10)
+      date: toLocalDateStr(start),
+      periodStart: toLocalDateStr(start),
+      periodEnd: toLocalDateStr(end)
     }
   }
   // monthly
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   return {
-    date: today,
-    periodStart: monthStart.toISOString().slice(0, 10),
-    periodEnd: monthEnd.toISOString().slice(0, 10)
+    date: toLocalDateStr(monthStart),
+    periodStart: toLocalDateStr(monthStart),
+    periodEnd: toLocalDateStr(monthEnd)
   }
 }
 
@@ -63,9 +71,16 @@ export default function WorkSummary() {
 
   const period = getPeriodRange(type)
 
+  // 日小结按天查；周/月小结按周期区间查（取最新一条），避免锚点不一致导致查不到
+  const fetchSummary = async () => {
+    if (type === 'daily') return workSummariesApi.getByDate(period.date, type)
+    const rows = await workSummariesApi.getByPeriod(period.periodStart, period.periodEnd, type)
+    return (rows && rows[0]) || null
+  }
+
   const { data: summary, loading, refresh } = useAsyncData(
-    () => workSummariesApi.getByDate(today, type),
-    [today, type]
+    fetchSummary,
+    [type, period.date]
   )
 
   const { data: historyList, loading: historyLoading, refresh: refreshHistory } = useAsyncData(
@@ -106,7 +121,7 @@ export default function WorkSummary() {
     try {
       await workSummariesApi.upsert({
         type,
-        date: today,
+        date: period.date, // 稳定锚点：日=当天 / 周=周一 / 月=1号
         period_start: period.periodStart,
         period_end: period.periodEnd,
         content: content.trim(),

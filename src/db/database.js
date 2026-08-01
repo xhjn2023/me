@@ -111,14 +111,18 @@ export const tasksApi = {
   },
   async add(data) {
     const row = await withUid({ ...data, updated_at: Date.now() })
+    // status 与旧 done 布尔同步，保证首页/时间轴等旧消费方正常
+    if (data.status != null) row.done = data.status === 'done'
     const { data: result, error } = await supabase.from('tasks').insert(row).select().single()
     if (error) throw error
     return result
   },
   async update(id, data) {
     const userId = await uid()
+    const payload = { ...data, updated_at: Date.now() }
+    if (data.status != null) payload.done = data.status === 'done'
     const { data: row, error } = await supabase.from('tasks')
-      .update({ ...data, updated_at: Date.now() }).eq('id', id).eq('user_id', userId).select().single()
+      .update(payload).eq('id', id).eq('user_id', userId).select().single()
     if (error) throw error
     return row
   },

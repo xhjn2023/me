@@ -179,11 +179,16 @@ export default function TaskBoard() {
   const todayList = todayTasks || []
   const doneCount = todayList.filter(t => t.done).length
 
-  // 任务统计
-  const totalCount = taskList.length
-  const todoCount = taskList.filter(t => t.status === 'todo' || (!t.status && !t.done)).length
-  const inProgressCount = taskList.filter(t => t.status === 'in_progress').length
-  const doneTotalCount = taskList.filter(t => t.status === 'done' || t.done).length
+  // 视图切换：今日只看 date=today 的任务，全部则显示全量（受筛选条件约束）
+  const displayList = viewMode === 'daily'
+    ? taskList.filter(t => t.date === today)
+    : taskList
+
+  // 任务统计（基于当前可见列表）
+  const totalCount = displayList.length
+  const todoCount = displayList.filter(t => t.status === 'todo' || (!t.status && !t.done)).length
+  const inProgressCount = displayList.filter(t => t.status === 'in_progress').length
+  const doneTotalCount = displayList.filter(t => t.status === 'done' || t.done).length
 
   return (
     <div>
@@ -271,7 +276,7 @@ export default function TaskBoard() {
       {/* 任务列表 */}
       {loading ? (
         <LoadingState text="加载任务..." />
-      ) : taskList.length === 0 ? (
+      ) : displayList.length === 0 ? (
         <EmptyState
           icon="clipboardList"
           title="暂无任务"
@@ -279,7 +284,7 @@ export default function TaskBoard() {
         />
       ) : (
         <div className="space-y-2">
-          {taskList.map(task => {
+          {displayList.map(task => {
             const status = task.status || (task.done ? 'done' : 'todo')
             const isOverdue = task.deadline && task.deadline < today && status !== 'done'
             return (
