@@ -8,10 +8,17 @@ import {
 const ACTION_LABELS = {
   checkin: '打卡',
   uncheckin: '取消打卡',
+  makeup_checkin: '补打卡',
   quantity_update: '余量修改',
   bottle_change: '瓶号修改',
   bottle_switch: '换新瓶',
   settings_update: '设置更新'
+}
+
+// 本地日期 key（与 medicineStore 的时区处理保持一致）
+function dateKey(d = new Date()) {
+  const tz = d.getTimezoneOffset() * 60000
+  return new Date(d - tz).toISOString().slice(0, 10)
 }
 
 const TABS = [
@@ -31,6 +38,7 @@ export default function Medicine() {
   const [showSettings, setShowSettings] = useState(false)
   const [showEditRemaining, setShowEditRemaining] = useState(false)
   const [confirmSwitch, setConfirmSwitch] = useState(false)
+  const [showMakeup, setShowMakeup] = useState(false)
 
   // 统一刷新：从 Supabase 重新拉取所有数据
   const refreshAll = useCallback(async () => {
@@ -68,6 +76,14 @@ export default function Medicine() {
     showToast('已取消今日打卡', 'info')
   }
 
+  async function handleMakeup(date) {
+    const res = await medicine.makeupCheckin(date)
+    if (!res.ok) { showToast(res.reason, 'error'); return }
+    await refreshAll()
+    setShowMakeup(false)
+    showToast(`已补打卡 ${date}`, 'success')
+  }
+
   async function doSwitchBottle() {
     if (!state) return
     const prevBottle = state.bottleNumber
@@ -101,6 +117,14 @@ export default function Medicine() {
   const sortedCheckinDates = useMemo(
     () => Object.keys(checkins).sort((a, b) => (a < b ? 1 : -1)),
     [checkins]
+  )
+
+  const todayKey = useMemo(() => dateKey(new Date()), [])
+  const yesterdayKey = useMemo(() => dateKey(new Date(Date.now() - 86400000)), [])
+  // 已有打卡记录但昨天漏打卡时，主动提醒补卡
+  const missedYesterday = useMemo(
+    () => totalDays > 0 && !checkins[yesterdayKey],
+    [checkins, totalDays, yesterdayKey]
   )
 
   if (loading || !state) {
@@ -142,6 +166,27 @@ export default function Medicine() {
               当前剩余 {state.remainingPills} 颗，建议尽快购药补货
             </p>
           </div>
+        </div>
+      )}
+
+      {/* 漏打卡提醒 */}
+      {missedYesterday && (
+        <div className="mx-4 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2 animate-fade-in">
+          <span className="text-rose-500 mt-0.5 flex-shrink-0">
+            <Icon name="calendar" size={18} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-rose-700 font-medium">昨天还没打卡</p>
+            <p className="text-xs text-rose-600 mt-0.5">
+              看起来昨天忘记打卡了，现在补上以保持连续记录。
+            </p>
+          </div>
+          <button
+            onClick={() => setShowMakeup(true)}
+            className="text-xs font-medium text-rose-600 underline flex-shrink-0 mt-1"
+          >
+            去补打卡
+          </button>
         </div>
       )}
 
@@ -242,7 +287,20 @@ export default function Medicine() {
             ))}
           </div>
           <div className="p-4 max-h-80 overflow-y-auto">
-            {tab === 'checkin' && <CheckinHistory dates={sortedCheckinDates} />}
+            {tab === 'checkin' && (
+              <>
+                <CheckinHistory dates={sortedCheckinDates} />
+                <Button
+                  variant="secondary"
+                  size="md"
+                  className="w-full mt-3 bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200"
+                  icon="calendar"
+                  onClick={() => setShowMakeup(true)}
+                >
+                  补打卡漏掉的日子
+                </Button>
+              </>
+            )}
             {tab === 'bottles' && (
               <BottleHistory bottles={bottles} currentNo={state.bottleNumber} />
             )}
@@ -290,6 +348,15 @@ export default function Medicine() {
         message={`确认第 ${state.bottleNumber} 瓶已吃完，开启下一瓶？`}
         confirmText="确认换瓶"
         danger={false}
+      />
+
+      {/* 补打卡弹层 */}
+      <MakeupSheet
+        open={showMakeup}
+        defaultDate={yesterdayKey}
+        todayKey={todayKey}
+        onClose={() => setShowMakeup(false)}
+        onSave={handleMakeup}
       />
     </div>
   )
@@ -440,6 +507,74 @@ function LogsView({ logs }) {
         </div>
       ))}
     </div>
+  )
+}
+
+// ─── 补打卡弹层（日期选择）───
+function MakeupSheet({ open, defaultDate, todayKey, onClose, onSave }) {
+  const [value, setValue] = useState(defaultDate)
+  const [error, setError] = useState('')
+
+  // 每次打开时重置为默认日期
+  useEffect(() => {
+    if (open) {
+      setValue(defaultDate)
+      setError('')
+    }
+  }, [open, defaultDate])
+
+  function submit() {
+    if (!value) {
+      setError('请选择要补打卡的日期')
+      return
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      setError('日期格式不正确')
+      return
+    }
+    if (value > todayKey) {
+      setError('不能对未来日期补打卡')
+      return
+    }
+    onSave(value)
+  }
+
+  return (
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      title="补打卡"
+      footer={
+        <div className="flex gap-2">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            variant="primary"
+            className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 shadow-rose-500/20"
+            onClick={submit}
+            icon="check"
+          >
+            确认补卡
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-slate-500">
+          补打卡会按今日剂量扣除药量，并记录到对应日期，用于补回忘记打卡的日子。
+        </p>
+        <Input
+          type="date"
+          label="打卡日期"
+          value={value}
+          max={todayKey}
+          onChange={e => { setValue(e.target.value); setError('') }}
+          icon="calendar"
+        />
+        {error && <p className="text-xs text-rose-500">{error}</p>}
+      </div>
+    </BottomSheet>
   )
 }
 

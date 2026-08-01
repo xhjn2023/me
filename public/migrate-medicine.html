@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>用药数据迁移</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f0f4f8; padding: 20px; color: #333; }
+  .card { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 24px; }
+  h1 { font-size: 18px; margin-bottom: 16px; color: #1a202c; }
+  pre { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 13px; overflow-x: auto; max-height: 300px; overflow-y: auto; }
+  button { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { background: #e2e8f0; color: #475569; margin-left: 8px; }
+  .step { margin-bottom: 16px; }
+  .step-label { font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 4px; }
+  .log { font-size: 12px; color: #64748b; margin-top: 8px; }
+  .log.success { color: #16a34a; }
+  .log.error { color: #dc2626; }
+  .status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .status.pending { background: #94a3b8; }
+  .status.running { background: #f59e0b; animation: pulse 1s infinite; }
+  .status.done { background: #16a34a; }
+  .status.fail { background: #dc2626; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .summary { margin-top: 12px; padding: 12px; border-radius: 8px; }
+  .summary.success { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .summary.error { background: #fef2f2; border: 1px solid #fecaca; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>💊 用药数据迁移 → Supabase</h1>
+  
+  <div class="step">
+    <div class="step-label">步骤 1: 读取 localStorage</div>
+    <button class="btn-primary" id="btnRead">读取本地数据</button>
+    <div id="localData" class="hidden">
+      <pre id="dataPreview"></pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-label">步骤 2: 登录 Supabase</div>
+    <div>
+      <input id="inputEmail" type="email" placeholder="邮箱" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px;width:200px;margin-right:8px;" />
+      <input id="inputPassword" type="password" placeholder="密码" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px;width:200px;margin-right:8px;" />
+      <button class="btn-primary" id="btnLogin">登录</button>
+    </div>
+    <div id="loginStatus" class="log"></div>
+  </div>
+
+  <div class="step">
+    <div class="step-label">步骤 3: 迁移到 Supabase</div>
+    <button class="btn-primary" id="btnMigrate" disabled>开始迁移</button>
+    <div id="migrateStatus"></div>
+  </div>
+
+  <div id="summary" class="summary hidden"></div>
+
+  <div id="resultLog"></div>
+</div>
+
+<script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.9'
+
+  const SUPABASE_URL = 'https://cszkekdciqgimsvfgons.supabase.co'
+  const SUPABASE_ANON_KEY = 'sb_publishable_EgAro7H2v76ZHWTbzeN0vA_SToYDLgx'
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+  let localData = null
+  let user = null
+
+  function log(msg, type = '') {
+    const el = document.getElementById('resultLog')
+    const p = document.createElement('div')
+    p.className = `log ${type}`
+    p.textContent = msg
+    el.appendChild(p)
+  }
+
+  function clearLog() {
+    document.getElementById('resultLog').innerHTML = ''
+  }
+
+  // 读取 localStorage
+  document.getElementById('btnRead').onclick = () => {
+    clearLog()
+    try {
+      const state = localStorage.getItem('medicine:state')
+      const checkins = localStorage.getItem('medicine:checkins')
+      const bottles = localStorage.getItem('medicine:bottles')
+      const logs = localStorage.getItem('medicine:logs')
+
+      localData = {
+        state: state ? JSON.parse(state) : null,
+        checkins: checkins ? JSON.parse(checkins) : null,
+        bottles: bottles ? JSON.parse(bottles) : null,
+        logs: logs ? JSON.parse(logs) : null
+      }
+
+      document.getElementById('localData').classList.remove('hidden')
+      document.getElementById('dataPreview').textContent = JSON.stringify(localData, null, 2)
+      log('✅ 读取成功', 'success')
+    } catch (e) {
+      log('❌ 读取失败: ' + e.message, 'error')
+    }
+  }
+
+  // 登录 Supabase
+  document.getElementById('btnLogin').onclick = async () => {
+    const email = document.getElementById('inputEmail').value.trim()
+    const password = document.getElementById('inputPassword').value.trim()
+    if (!email || !password) {
+      document.getElementById('loginStatus').textContent = '请输入邮箱和密码'
+      return
+    }
+    document.getElementById('loginStatus').textContent = '登录中...'
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+      user = data.user
+      document.getElementById('loginStatus').textContent = '✅ 已登录: ' + user.email
+      document.getElementById('loginStatus').className = 'log success'
+      document.getElementById('btnMigrate').disabled = false
+    } catch (e) {
+      document.getElementById('loginStatus').textContent = '❌ ' + e.message
+      document.getElementById('loginStatus').className = 'log error'
+    }
+  }
+
+  // 迁移数据
+  document.getElementById('btnMigrate').onclick = async () => {
+    if (!user || !localData) return
+    document.getElementById('btnMigrate').disabled = true
+    document.getElementById('btnMigrate').textContent = '迁移中...'
+    clearLog()
+
+    const summary = { state: false, checkins: 0, bottles: 0, logs: 0, errors: [] }
+
+    try {
+      // 1. 迁移 medicine_state
+      if (localData.state) {
+        const s = localData.state
+        await supabase.from('medicine_state').upsert({
+          user_id: user.id,
+          bottle_number: s.bottleNumber ?? 1,
+          remaining_pills: s.remainingPills ?? 30,
+          pills_per_bottle: s.pillsPerBottle ?? 30,
+          daily_dose: s.dailyDose ?? 1,
+          reminder_time: s.reminderTime ?? '09:00',
+          low_threshold: s.lowThreshold ?? 5,
+          created_at: s.createdAt ?? Date.now()
+        }, { onConflict: 'user_id' })
+        summary.state = true
+        log('✅ medicine_state 迁移完成', 'success')
+      }
+
+      // 2. 迁移 medicine_checkins
+      if (localData.checkins) {
+        const checkinEntries = Object.entries(localData.checkins)
+        for (const [date, dose] of checkinEntries) {
+          await supabase.from('medicine_checkins').upsert({
+            user_id: user.id,
+            date,
+            dose: dose ?? 1
+          }, { onConflict: 'user_id,date' })
+          summary.checkins++
+        }
+        log(`✅ medicine_checkins 迁移 ${summary.checkins} 条`, 'success')
+      }
+
+      // 3. 迁移 medicine_bottles
+      if (localData.bottles && Array.isArray(localData.bottles)) {
+        for (const b of localData.bottles) {
+          await supabase.from('medicine_bottles').insert({
+            user_id: user.id,
+            bottle_number: b.bottleNumber ?? 1,
+            started_at: b.startedAt ?? null,
+            finished_at: b.finishedAt ?? null,
+            total_pills: b.totalPills ?? 30
+          })
+          summary.bottles++
+        }
+        log(`✅ medicine_bottles 迁移 ${summary.bottles} 条`, 'success')
+      }
+
+      // 4. 迁移 medicine_logs
+      if (localData.logs && Array.isArray(localData.logs)) {
+        for (const l of localData.logs) {
+          await supabase.from('medicine_logs').insert({
+            user_id: user.id,
+            date: l.date ?? '',
+            action: l.action ?? '',
+            note: l.note ?? '',
+            timestamp: l.timestamp ?? Date.now()
+          })
+          summary.logs++
+        }
+        log(`✅ medicine_logs 迁移 ${summary.logs} 条`, 'success')
+      }
+
+      // 显示汇总
+      const summaryEl = document.getElementById('summary')
+      summaryEl.className = 'summary success'
+      summaryEl.innerHTML = `<strong>✅ 迁移完成</strong><br>`
+        + `药瓶状态: ${summary.state ? '✓' : '无数据'}<br>`
+        + `打卡记录: ${summary.checkins} 条<br>`
+        + `瓶次历史: ${summary.bottles} 条<br>`
+        + `操作日志: ${summary.logs} 条`
+      summaryEl.classList.remove('hidden')
+
+      localStorage.removeItem('medicine:state')
+      localStorage.removeItem('medicine:checkins')
+      localStorage.removeItem('medicine:bottles')
+      localStorage.removeItem('medicine:logs')
+      log('✅ 已清理 localStorage 旧数据', 'success')
+
+    } catch (e) {
+      log('❌ 迁移失败: ' + e.message, 'error')
+      const summaryEl = document.getElementById('summary')
+      summaryEl.className = 'summary error'
+      summaryEl.innerHTML = `<strong>❌ 迁移出错</strong><br>${e.message}`
+      summaryEl.classList.remove('hidden')
+    }
+
+    document.getElementById('btnMigrate').textContent = '重新迁移'
+    document.getElementById('btnMigrate').disabled = false
+  }
+</script>
+</body>
+</html>

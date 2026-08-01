@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>用药数据迁移</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.9/dist/umd/supabase.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f0f4f8; padding: 20px; color: #333; }
+  .card { max-width: 640px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 24px; }
+  h1 { font-size: 18px; margin-bottom: 16px; }
+  button { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .step { margin-bottom: 16px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; }
+  .step h3 { font-size: 14px; margin-bottom: 8px; color: #6366f1; }
+  input { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; width: 100%; margin-bottom: 6px; }
+  pre { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; overflow: auto; max-height: 200px; margin-top: 8px; }
+  .log { font-size: 12px; margin-top: 6px; padding: 4px 0; }
+  .log.ok { color: #16a34a; }
+  .log.err { color: #dc2626; }
+  .summary { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; line-height: 1.8; }
+  .summary.ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .summary.err { background: #fef2f2; border: 1px solid #fecaca; }
+  .hidden { display: none; }
+  .flex { display: flex; gap: 8px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>💊 用药数据 → Supabase 迁移</h1>
+
+  <div class="step" id="step1">
+    <h3>步骤 1: 检查本地数据</h3>
+    <p style="font-size:13px;color:#64748b;margin-bottom:8px;">
+      点击下方按钮，从浏览器 localStorage 中读取用药数据。
+    </p>
+    <button class="btn-primary" id="btnRead">读取本地数据</button>
+    <div id="dataPreview" class="hidden"><pre></pre></div>
+    <div id="log1"></div>
+  </div>
+
+  <div class="step" id="step2">
+    <h3>步骤 2: 登录 Supabase</h3>
+    <input id="email" type="email" placeholder="邮箱" value="1414350436@qq.com" />
+    <input id="password" type="password" placeholder="密码" />
+    <button class="btn-primary" id="btnLogin">登录</button>
+    <div id="log2"></div>
+  </div>
+
+  <div class="step" id="step3">
+    <h3>步骤 3: 迁移数据</h3>
+    <button class="btn-primary" id="btnMigrate" disabled>开始迁移</button>
+    <div id="log3"></div>
+  </div>
+
+  <div id="summary" class="summary hidden"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://cszkekdciqgimsvfgons.supabase.co'
+const SUPABASE_ANON_KEY = 'sb_publishable_EgAro7H2v76ZHWTbzeN0vA_SToYDLgx'
+const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+let localData = null
+let user = null
+
+function $(id) { return document.getElementById(id) }
+function log(id, msg, ok) {
+  const el = $(id)
+  const p = document.createElement('div')
+  p.className = 'log ' + (ok ? 'ok' : '')
+  p.textContent = msg
+  el.appendChild(p)
+}
+
+// 读取 localStorage
+$('btnRead').onclick = () => {
+  $('log1').innerHTML = ''
+  try {
+    const state = localStorage.getItem('medicine:state')
+    const checkins = localStorage.getItem('medicine:checkins')
+    const bottles = localStorage.getItem('medicine:bottles')
+    const logs = localStorage.getItem('medicine:logs')
+
+    localData = {
+      state: state ? JSON.parse(state) : null,
+      checkins: checkins ? JSON.parse(checkins) : null,
+      bottles: bottles ? JSON.parse(bottles) : null,
+      logs: logs ? JSON.parse(logs) : null
+    }
+
+    const pre = $('dataPreview').querySelector('pre')
+    pre.textContent = JSON.stringify(localData, null, 2)
+    $('dataPreview').classList.remove('hidden')
+
+    const hasData = localData.state || localData.checkins || (localData.bottles?.length) || (localData.logs?.length)
+    if (hasData) {
+      log('log1', '✅ 读取成功，有数据待迁移', true)
+    } else {
+      log('log1', '⚠️ 未找到数据，localStorage 中没有用药数据')
+    }
+  } catch (e) {
+    log('log1', '❌ 读取失败: ' + e.message)
+  }
+}
+
+// 登录
+$('btnLogin').onclick = async () => {
+  const email = $('email').value.trim()
+  const password = $('password').value.trim()
+  if (!email || !password) { log('log2', '请输入邮箱和密码'); return }
+  $('log2').innerHTML = ''
+  log('log2', '登录中...')
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    user = data.user
+    log('log2', '✅ 已登录: ' + user.email, true)
+    $('btnMigrate').disabled = false
+  } catch (e) {
+    log('log2', '❌ ' + e.message)
+  }
+}
+
+// 迁移
+$('btnMigrate').onclick = async () => {
+  if (!user || !localData) return
+  $('log3').innerHTML = ''
+  $('btnMigrate').disabled = true
+  $('btnMigrate').textContent = '迁移中...'
+
+  const summary = { state: false, checkins: 0, bottles: 0, logs: 0 }
+
+  try {
+    // 1. state
+    if (localData.state) {
+      const s = localData.state
+      const { error } = await supabase.from('medicine_state').upsert({
+        user_id: user.id,
+        bottle_number: s.bottleNumber ?? 1,
+        remaining_pills: s.remainingPills ?? 30,
+        pills_per_bottle: s.pillsPerBottle ?? 30,
+        daily_dose: s.dailyDose ?? 1,
+        reminder_time: s.reminderTime ?? '09:00',
+        low_threshold: s.lowThreshold ?? 5,
+        created_at: s.createdAt ?? Date.now()
+      }, { onConflict: 'user_id' })
+      if (error) throw error
+      summary.state = true
+      log('log3', '✅ medicine_state 迁移完成', true)
+    }
+
+    // 2. checkins
+    if (localData.checkins) {
+      for (const [date, dose] of Object.entries(localData.checkins)) {
+        const { error } = await supabase.from('medicine_checkins').upsert({
+          user_id: user.id, date, dose: dose ?? 1
+        }, { onConflict: 'user_id,date' })
+        if (error) throw error
+        summary.checkins++
+      }
+      log('log3', `✅ medicine_checkins 迁移 ${summary.checkins} 条`, true)
+    }
+
+    // 3. bottles
+    if (localData.bottles?.length) {
+      for (const b of localData.bottles) {
+        const { error } = await supabase.from('medicine_bottles').insert({
+          user_id: user.id,
+          bottle_number: b.bottleNumber ?? 1,
+          started_at: b.startedAt ?? null,
+          finished_at: b.finishedAt ?? null,
+          total_pills: b.totalPills ?? 30
+        })
+        if (error) throw error
+        summary.bottles++
+      }
+      log('log3', `✅ medicine_bottles 迁移 ${summary.bottles} 条`, true)
+    }
+
+    // 4. logs
+    if (localData.logs?.length) {
+      for (const l of localData.logs) {
+        const { error } = await supabase.from('medicine_logs').insert({
+          user_id: user.id,
+          date: l.date ?? '',
+          action: l.action ?? '',
+          note: l.note ?? '',
+          timestamp: l.timestamp ?? Date.now()
+        })
+        if (error) throw error
+        summary.logs++
+      }
+      log('log3', `✅ medicine_logs 迁移 ${summary.logs} 条`, true)
+    }
+
+    // 清理 localStorage
+    localStorage.removeItem('medicine:state')
+    localStorage.removeItem('medicine:checkins')
+    localStorage.removeItem('medicine:bottles')
+    localStorage.removeItem('medicine:logs')
+
+    // 汇总
+    const el = $('summary')
+    el.className = 'summary ok'
+    el.innerHTML = '<strong>🎉 迁移完成!</strong><br>' +
+      `药瓶状态: ${summary.state ? '✓' : '无'}<br>` +
+      `打卡记录: ${summary.checkins} 条<br>` +
+      `瓶次历史: ${summary.bottles} 条<br>` +
+      `操作日志: ${summary.logs} 条<br>` +
+      '<span style="font-size:12px;color:#94a3b8;">已清理 localStorage 旧数据</span>'
+    el.classList.remove('hidden')
+
+  } catch (e) {
+    log('log3', '❌ ' + e.message)
+    $('summary').className = 'summary err'
+    $('summary').innerHTML = '<strong>❌ 迁移出错</strong><br>' + e.message
+    $('summary').classList.remove('hidden')
+  }
+
+  $('btnMigrate').textContent = '重新迁移'
+  $('btnMigrate').disabled = false
+}
+</script>
+</body>
+</html>

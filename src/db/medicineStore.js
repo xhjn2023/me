@@ -161,17 +161,41 @@ async function finishBottleRecord(bottleNumber) {
 
 // ─── 业务操作 ───
 
-/** 今日打卡：扣减当日剂量、写入打卡日、记录日志 */
-export async function checkinToday() {
+/**
+ * 通用打卡：今日打卡与补打卡共用同一套逻辑。
+ * - 不允许对未来日期打卡
+ * - 同一日期不可重复打卡（medicine_checkins 以 user_id+date 唯一约束）
+ * - 完全复用原有流程：扣减当日剂量、写入打卡日、记录日志
+ */
+async function performCheckin(date, { makeup = false } = {}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { ok: false, reason: '日期格式不正确' }
+  }
   const today = todayStr()
+  if (date > today) {
+    return { ok: false, reason: makeup ? '不能对未来日期补打卡' : '不能对未来日期打卡' }
+  }
   const checkins = await getCheckins()
-  if (checkins[today]) return { ok: false, reason: '今日已打卡' }
+  if (checkins[date]) {
+    return { ok: false, reason: makeup ? '该日期已打卡' : '今日已打卡' }
+  }
   const state = await getState()
   const newRemaining = Math.max(0, state.remainingPills - state.dailyDose)
-  await medicineCheckinsApi.add(today, state.dailyDose)
+  await medicineCheckinsApi.add(date, state.dailyDose)
   const next = await saveState({ remainingPills: newRemaining })
-  await pushLog('checkin', `第${state.bottleNumber}瓶打卡，剩余${newRemaining}颗`)
-  return { ok: true, state: next }
+  const note = `第${state.bottleNumber}瓶打卡，剩余${newRemaining}颗`
+  await pushLog(makeup ? 'makeup_checkin' : 'checkin', makeup ? `补打卡 ${date}，${note}` : note)
+  return { ok: true, state: next, date }
+}
+
+/** 今日打卡（复用通用打卡流程） */
+export async function checkinToday() {
+  return performCheckin(todayStr())
+}
+
+/** 补打卡：为过去某天补记一次打卡，与今日打卡共用扣量 / 写日志逻辑 */
+export async function makeupCheckin(date) {
+  return performCheckin(date, { makeup: true })
 }
 
 /** 取消今日打卡：恢复剂量、移除打卡日 */
