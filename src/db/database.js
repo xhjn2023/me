@@ -90,21 +90,92 @@ export const tasksApi = {
     if (error) throw error
     return data || []
   },
+  async getAll({ status, category, priority, sortBy = 'created_at', sortOrder = 'desc' } = {}) {
+    const userId = await uid()
+    let q = supabase.from('tasks').select('*').eq('user_id', userId)
+    if (status && status !== 'all') q = q.eq('status', status)
+    if (category && category !== 'all') q = q.eq('category', category)
+    if (priority !== undefined && priority !== null && priority !== 'all') q = q.eq('priority', priority)
+    const { data, error } = await q.order(sortBy, { ascending: sortOrder === 'asc' }).limit(200)
+    if (error) throw error
+    return data || []
+  },
+  async getByDateRange(startDate, endDate) {
+    const userId = await uid()
+    const { data, error } = await supabase
+      .from('tasks').select('*').eq('user_id', userId)
+      .gte('date', startDate).lte('date', endDate)
+      .order('date', { ascending: false }).order('priority', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
   async add(data) {
-    const row = await withUid(data)
+    const row = await withUid({ ...data, updated_at: Date.now() })
     const { data: result, error } = await supabase.from('tasks').insert(row).select().single()
     if (error) throw error
     return result
   },
   async update(id, data) {
     const userId = await uid()
-    const { data: row, error } = await supabase.from('tasks').update(data).eq('id', id).eq('user_id', userId).select().single()
+    const { data: row, error } = await supabase.from('tasks')
+      .update({ ...data, updated_at: Date.now() }).eq('id', id).eq('user_id', userId).select().single()
     if (error) throw error
     return row
+  },
+  async updateStatus(id, status) {
+    return tasksApi.update(id, { status, done: status === 'done' })
   },
   async delete(id) {
     const userId = await uid()
     const { error } = await supabase.from('tasks').delete().eq('id', id).eq('user_id', userId)
+    if (error) throw error
+  }
+}
+
+// ─── Work Summaries ───
+export const workSummariesApi = {
+  async getByDate(date, type) {
+    const userId = await uid()
+    let q = supabase.from('work_summaries').select('*').eq('user_id', userId).eq('date', date)
+    if (type) q = q.eq('type', type)
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(1)
+    if (error) throw error
+    return (data && data[0]) || null
+  },
+  async getByPeriod(startDate, endDate, type) {
+    const userId = await uid()
+    let q = supabase.from('work_summaries').select('*').eq('user_id', userId)
+    if (type) q = q.eq('type', type)
+    q = q.gte('date', startDate).lte('date', endDate)
+    const { data, error } = await q.order('date', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async getAll({ type, limit = 50 } = {}) {
+    const userId = await uid()
+    let q = supabase.from('work_summaries').select('*').eq('user_id', userId)
+    if (type) q = q.eq('type', type)
+    const { data, error } = await q.order('date', { ascending: false }).limit(limit)
+    if (error) throw error
+    return data || []
+  },
+  async upsert(data) {
+    const userId = await uid()
+    const now = Date.now()
+    const row = { ...data, user_id: userId, updated_at: now }
+    if (!row.created_at) row.created_at = now
+    // 按 (user_id, type, date) 唯一约束 upsert
+    const { data: result, error } = await supabase
+      .from('work_summaries')
+      .upsert(row, { onConflict: 'user_id,type,date' })
+      .select()
+      .single()
+    if (error) throw error
+    return result
+  },
+  async delete(id) {
+    const userId = await uid()
+    const { error } = await supabase.from('work_summaries').delete().eq('id', id).eq('user_id', userId)
     if (error) throw error
   }
 }
