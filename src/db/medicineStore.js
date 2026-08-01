@@ -296,4 +296,29 @@ export async function initMedicine() {
   return state
 }
 
+/**
+ * 导出全部用药数据为可序列化对象
+ * 包含：state（当前状态）/ checkins（打卡记录）/ bottles（瓶次历史）/ logs（操作日志）
+ * 同时附带元信息（导出时间、版本号），便于后续做导入或迁移
+ */
+export async function exportData() {
+  const [state, checkins, bottles, logs] = await Promise.all([
+    getState(),
+    getCheckins(),
+    getBottles(),
+    getLogs()
+  ])
+  return {
+    meta: {
+      module: 'medicine',
+      version: 1,
+      exportedAt: new Date().toISOString()
+    },
+    state,
+    checkins,
+    bottles,
+    logs
+  }
+}
+
 export { STANDARD_BOTTLE_SIZE }

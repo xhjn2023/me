@@ -367,6 +367,32 @@ function SettingsPanel({ state, onChange }) {
   const [pillsPerBottle, setPillsPerBottle] = useState(state.pillsPerBottle)
   const [dailyDose, setDailyDose] = useState(state.dailyDose)
   const [lowThreshold, setLowThreshold] = useState(state.lowThreshold)
+  const [exporting, setExporting] = useState(false)
+
+  async function handleExport() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const data = await medicine.exportData()
+      const json = JSON.stringify(data, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const ts = new Date().toISOString().slice(0, 10)
+      a.download = `medicine-export-${ts}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      showToast('数据已导出', 'success')
+    } catch (err) {
+      console.error('导出失败:', err)
+      showToast('导出失败，请重试', 'error')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -399,6 +425,23 @@ function SettingsPanel({ state, onChange }) {
       >
         保存设置
       </Button>
+
+      {/* 分隔线 + 数据导出 */}
+      <div className="pt-2 mt-2 border-t border-slate-100">
+        <p className="text-xs text-slate-400 mb-2">数据管理</p>
+        <Button
+          variant="secondary"
+          className="w-full bg-slate-50 text-slate-600 hover:bg-slate-100 active:bg-slate-200"
+          icon={exporting ? 'refreshCw' : 'download'}
+          onClick={handleExport}
+          disabled={exporting}
+        >
+          {exporting ? '导出中...' : '导出用药数据'}
+        </Button>
+        <p className="text-xs text-slate-400 mt-1.5">
+          导出 JSON 文件，包含打卡记录、瓶次历史与操作日志
+        </p>
+      </div>
     </div>
   )
 }
