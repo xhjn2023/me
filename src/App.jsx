@@ -9,28 +9,37 @@ import Medicine from './pages/Medicine'
 import Login from './pages/Login'
 import { getCurrentUser, onAuthStateChange, signOut } from './db/auth'
 import { initializeData } from './db/seed'
-import { Icon } from './components/ui/icons'
+import { Icon, IconFilled } from './components/ui/icons'
 import { ToastContainer, ConfirmDialog } from './components/ui'
 
 const TABS = [
-  { key: 'dashboard', label: '首页', icon: 'home', accent: 'indigo' },
-  { key: 'work', label: '工作', icon: 'briefcase', accent: 'blue' },
-  { key: 'study', label: '学习', icon: 'graduationCap', accent: 'emerald' },
-  { key: 'life', label: '生活', icon: 'leaf', accent: 'teal' },
-  { key: 'medicine', label: '用药', icon: 'pill', accent: 'rose' },
-  { key: 'side', label: '副业', icon: 'rocket', accent: 'orange' },
-  { key: 'review', label: '复盘', icon: 'clipboardList', accent: 'violet' },
+  // 图标主题色（柔和多彩）+ 选中左侧竖条色
+  { key: 'dashboard', label: '首页',   icon: 'home',          accent: 'indigo',  iconBg: 'bg-indigo-100 text-indigo-600',   barBg: 'bg-indigo-500' },
+  { key: 'work',      label: '工作',   icon: 'briefcase',     accent: 'blue',    iconBg: 'bg-blue-100 text-blue-600',       barBg: 'bg-blue-500' },
+  { key: 'study',     label: '学习',   icon: 'graduationCap', accent: 'emerald', iconBg: 'bg-emerald-100 text-emerald-600', barBg: 'bg-emerald-500' },
+  { key: 'life',      label: '生活',   icon: 'leaf',          accent: 'teal',    iconBg: 'bg-teal-100 text-teal-600',       barBg: 'bg-teal-500' },
+  { key: 'medicine',  label: '用药',   icon: 'pill',          accent: 'rose',    iconBg: 'bg-rose-100 text-rose-600',       barBg: 'bg-rose-500' },
+  { key: 'side',      label: '副业',   icon: 'rocket',        accent: 'orange',  iconBg: 'bg-orange-100 text-orange-600',   barBg: 'bg-orange-500' },
+  { key: 'review',    label: '复盘',   icon: 'clipboardList', accent: 'violet',  iconBg: 'bg-violet-100 text-violet-600',   barBg: 'bg-violet-500' },
 ]
 
 const ACTIVE_COLOR = {
-  indigo: 'text-primary-500',
-  blue: 'text-blue-500',
-  emerald: 'text-emerald-500',
-  teal: 'text-teal-500',
-  rose: 'text-rose-500',
-  orange: 'text-orange-500',
-  violet: 'text-violet-500',
+  indigo: 'text-indigo-600',
+  blue: 'text-blue-600',
+  emerald: 'text-emerald-600',
+  teal: 'text-teal-600',
+  rose: 'text-rose-600',
+  orange: 'text-orange-600',
+  violet: 'text-violet-600',
 }
+
+// 桌面端顶部成就徽章（mock，后续可接真实数据）
+const BADGES = [
+  { icon: 'trophy',   label: '7',   filled: false, className: 'text-amber-500 bg-amber-50' },
+  { icon: 'star',     label: '43',  filled: true,  className: 'text-yellow-500 bg-yellow-50' },
+  { icon: 'heart',    label: '1',   filled: true,  className: 'text-pink-500 bg-pink-50' },
+  { icon: 'sparkles', label: 'Lv1', filled: false, className: 'text-emerald-500 bg-emerald-50' },
+]
 
 export default function App() {
   const [tab, setTab] = useState('dashboard')
@@ -63,10 +72,10 @@ export default function App() {
   // 加载中
   if (authLoading) {
     return (
-      <div className="gemini-bg min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f9ff]">
         <div className="flex flex-col items-center gap-3">
-          <Icon name="loader" size={32} className="text-primary-500 animate-spin" />
-          <p className="text-sm text-primary-400">加载中...</p>
+          <Icon name="loader" size={32} className="text-blue-500 animate-spin" />
+          <p className="text-sm text-blue-400">加载中...</p>
         </div>
       </div>
     )
@@ -83,51 +92,60 @@ export default function App() {
   }
 
   const currentTab = TABS.find(t => t.key === tab)
+  const userName = user.email?.split('@')[0] || '我'
 
   return (
-    <div className="gemini-bg min-h-screen md:flex">
-      {/* 桌面端左侧侧边栏 */}
+    <div className="min-h-screen bg-[#f5f9ff] md:flex text-slate-800">
+      {/* 桌面端左侧窄侧边栏（图标在上 + 文字在下，参考幼升小工作台风格） */}
       <aside
-        className="hidden md:flex md:flex-col md:fixed md:inset-y-0 md:left-0 md:w-64 glass-heavy border-r border-primary-100/50 z-30"
+        className="hidden md:flex md:flex-col md:fixed md:inset-y-0 md:left-0 md:w-20 bg-white/70 backdrop-blur-xl border-r border-slate-100 z-30"
       >
-        {/* Brand */}
+        {/* 顶部：返回 + 头像 + 昵称 */}
         <div
-          className="px-5 py-5 border-b border-primary-100/50"
-          style={{ paddingTop: 'calc(var(--safe-top) + 1.25rem)' }}
+          className="flex flex-col items-center gap-1.5 pt-3 pb-4 border-b border-slate-100"
+          style={{ paddingTop: 'calc(var(--safe-top) + 0.75rem)' }}
         >
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full gemini-gradient-soft shadow-sm shadow-primary-400/30" />
-            <span className="text-sm font-semibold text-primary-700 tracking-wide">个人工作台</span>
+          <button className="self-start ml-3 p-1 rounded-full text-slate-400 hover:bg-slate-100 transition btn-press">
+            <Icon name="chevronLeft" size={18} />
+          </button>
+          <div className="relative w-11 h-11">
+            <span className="w-11 h-11 rounded-full gemini-gradient-soft flex items-center justify-center text-white text-sm font-medium shadow-sm shadow-indigo-300/40 ring-2 ring-white">
+              {(user.email || '?')[0].toUpperCase()}
+            </span>
           </div>
+          <p className="text-[11px] font-medium text-slate-600 truncate max-w-[72px]">{userName}</p>
         </div>
 
         {/* 分类导航 */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto no-scrollbar">
-          <p className="px-3 mb-2 text-[10px] font-semibold text-primary-400/70 uppercase tracking-wider">分类</p>
-          <div className="space-y-1">
-            {TABS.map(({ key, label, icon, accent }) => {
+        <nav className="flex-1 py-3 overflow-y-auto no-scrollbar">
+          <div className="space-y-1 px-2">
+            {TABS.map(({ key, label, icon, iconBg, barBg, accent }) => {
               const active = tab === key
+              const IconComp = active && filledPathsCheck(icon) ? IconFilled : Icon
               return (
                 <button
                   key={key}
                   onClick={() => setTab(key)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl btn-press transition relative ${
-                    active ? 'bg-primary-50/80' : 'hover:bg-primary-50/50'
-                  }`}
+                  className="w-full flex flex-col items-center gap-1 py-2.5 rounded-xl btn-press transition relative"
                 >
                   {active && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full gemini-gradient-soft" />
+                    <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-full ${barBg}`} />
                   )}
-                  <Icon
-                    name={icon}
-                    size={20}
-                    fill={active ? 'currentColor' : 'none'}
-                    className={active ? ACTIVE_COLOR[accent] || 'text-primary-500' : 'text-primary-400/70'}
-                    strokeWidth={active ? 2 : 1.75}
-                  />
                   <span
-                    className={`text-sm ${
-                      active ? `${ACTIVE_COLOR[accent] || 'text-primary-500'} font-semibold` : 'text-primary-600/80'
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center transition shadow-sm ${
+                      active ? iconBg : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-500'
+                    }`}
+                  >
+                    <Icon
+                      name={icon}
+                      size={20}
+                      fill={active ? 'currentColor' : 'none'}
+                      strokeWidth={active ? 2 : 1.75}
+                    />
+                  </span>
+                  <span
+                    className={`text-[10px] ${
+                      active ? `${ACTIVE_COLOR[accent]} font-semibold` : 'text-slate-400'
                     }`}
                   >
                     {label}
@@ -138,58 +156,54 @@ export default function App() {
           </div>
         </nav>
 
-        {/* 用户区 */}
+        {/* 底部：退出 */}
         <div
-          className="px-3 py-3 border-t border-primary-100/50"
+          className="py-3 border-t border-slate-100"
           style={{ paddingBottom: 'calc(var(--safe-bottom) + 0.75rem)' }}
         >
-          <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl">
-            <span className="w-8 h-8 rounded-full gemini-gradient-soft flex items-center justify-center text-white text-xs font-medium shadow-sm shadow-primary-400/30 shrink-0">
-              {(user.email || '?')[0].toUpperCase()}
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="w-full flex flex-col items-center gap-1 py-2 text-slate-400 hover:text-rose-500 transition btn-press mx-auto max-w-[60px] rounded-xl"
+            title="退出登录"
+          >
+            <span className="w-10 h-10 rounded-2xl bg-slate-50 hover:bg-rose-50 flex items-center justify-center transition">
+              <Icon name="logOut" size={18} />
             </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-primary-400">已登录</p>
-              <p className="text-xs text-primary-800 truncate">{user.email}</p>
-            </div>
-            <button
-              onClick={() => setShowLogoutConfirm(true)}
-              className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 transition btn-press shrink-0"
-              title="退出登录"
-            >
-              <Icon name="logOut" size={16} />
-            </button>
-          </div>
+            <span className="text-[10px]">退出</span>
+          </button>
         </div>
       </aside>
 
       {/* 主区域 */}
-      <div className="flex-1 md:pl-64 max-w-md md:max-w-none mx-auto">
-        {/* 移动端顶部用户栏 */}
+      <div className="flex-1 md:pl-20 max-w-md md:max-w-none mx-auto">
+        {/* 移动端顶部栏 */}
         <header
-          className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 glass-heavy border-b border-primary-100/50"
+          className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 bg-white/80 backdrop-blur-xl border-b border-slate-100"
           style={{ paddingTop: 'var(--safe-top)', paddingBottom: '0.5rem' }}
         >
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-gradient-to-r from-primary-400 to-primary-500 shadow-sm shadow-primary-400/30" />
-            <span className="text-xs font-semibold text-primary-600 tracking-wide uppercase">{currentTab.label}</span>
+            <span className={`w-7 h-7 rounded-xl ${currentTab.iconBg} flex items-center justify-center shadow-sm`}>
+              <Icon name={currentTab.icon} size={16} fill="currentColor" />
+            </span>
+            <span className={`text-xs font-semibold ${ACTIVE_COLOR[currentTab.accent]}`}>{currentTab.label}</span>
           </div>
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(v => !v)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-primary-50/60 transition btn-press"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-50 transition btn-press"
             >
-              <span className="w-6 h-6 rounded-full gemini-gradient-soft flex items-center justify-center text-white text-xs font-medium shadow-sm shadow-primary-400/30">
+              <span className="w-6 h-6 rounded-full gemini-gradient-soft flex items-center justify-center text-white text-xs font-medium">
                 {(user.email || '?')[0].toUpperCase()}
               </span>
-              <Icon name="chevronDown" size={14} className="text-primary-400" />
+              <Icon name="chevronDown" size={14} className="text-slate-400" />
             </button>
             {showUserMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-                <div className="absolute right-0 top-full mt-1.5 w-56 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg shadow-primary-500/10 border border-primary-100/60 py-1 z-50 animate-scale-in">
-                  <div className="px-3 py-2 border-b border-primary-100/50">
-                    <p className="text-xs text-primary-400">已登录</p>
-                    <p className="text-sm text-primary-800 truncate">{user.email}</p>
+                <div className="absolute right-0 top-full mt-1.5 w-56 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg shadow-slate-500/10 border border-slate-100 py-1 z-50 animate-scale-in">
+                  <div className="px-3 py-2 border-b border-slate-100">
+                    <p className="text-xs text-slate-400">已登录</p>
+                    <p className="text-sm text-slate-800 truncate">{user.email}</p>
                   </div>
                   <button
                     onClick={() => {
@@ -207,14 +221,47 @@ export default function App() {
           </div>
         </header>
 
-        {/* 桌面端顶部标题栏 */}
+        {/* 桌面端顶部栏：分类标题 + 任务/签到 + 成就徽章 */}
         <header
-          className="hidden md:flex sticky top-0 z-30 items-center justify-between px-8 glass-heavy border-b border-primary-100/50"
-          style={{ paddingTop: 'var(--safe-top)', paddingBottom: '0.875rem' }}
+          className="hidden md:flex sticky top-0 z-30 items-center gap-4 px-8 bg-white/70 backdrop-blur-xl border-b border-slate-100"
+          style={{ paddingTop: 'var(--safe-top)', paddingBottom: '0.75rem' }}
         >
+          {/* 左：分类标题（带图标） */}
           <div className="flex items-center gap-2.5">
-            <span className="w-2 h-2 rounded-full bg-gradient-to-r from-primary-400 to-primary-500 shadow-sm shadow-primary-400/30" />
-            <span className="text-sm font-semibold text-primary-700">{currentTab.label}</span>
+            <span className={`w-9 h-9 rounded-xl ${currentTab.iconBg} flex items-center justify-center shadow-sm`}>
+              <Icon name={currentTab.icon} size={18} fill="currentColor" strokeWidth={2} />
+            </span>
+            <span className={`text-sm font-semibold ${ACTIVE_COLOR[currentTab.accent]}`}>{currentTab.label}</span>
+          </div>
+
+          {/* 中：任务进度 + 签到标签 */}
+          <div className="flex items-center gap-2 ml-4">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-100 shadow-sm">
+              <Icon name="calendar" size={14} className="text-blue-500" />
+              <span className="text-[11px] font-semibold text-slate-700">7/10</span>
+            </span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 shadow-sm">
+              <Icon name="gift" size={14} className="text-emerald-500" />
+              <span className="text-[11px] font-semibold text-emerald-600">已签</span>
+            </span>
+          </div>
+
+          <div className="flex-1" />
+
+          {/* 右：成就徽章（奖牌 / 星星 / 爱心 / 等级） */}
+          <div className="flex items-center gap-2">
+            {BADGES.map(({ icon, label, filled, className }, i) => {
+              const Cmp = filled ? IconFilled : Icon
+              return (
+                <span
+                  key={i}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full ${className} border border-white shadow-sm`}
+                >
+                  <Cmp name={icon} size={14} />
+                  <span className="text-[11px] font-semibold">{label}</span>
+                </span>
+              )
+            })}
           </div>
         </header>
 
@@ -232,9 +279,9 @@ export default function App() {
           </div>
         </main>
 
-        {/* 移动端底部 Tab 导航（Gemini 毛玻璃风格） */}
+        {/* 移动端底部 Tab 导航（保持原模式） */}
         <nav
-          className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md glass-heavy border-t border-primary-100/50 shadow-[0_-4px_20px_rgba(139,92,246,0.06)]"
+          className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/85 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_20px_rgba(15,23,42,0.04)]"
           style={{ paddingBottom: 'var(--safe-bottom)' }}
         >
           <div className="flex">
@@ -247,18 +294,18 @@ export default function App() {
                   className="flex-1 flex flex-col items-center py-2.5 btn-press relative"
                 >
                   {active && (
-                    <span className="absolute -top-px left-1/4 right-1/4 h-0.5 rounded-full gemini-gradient-soft" />
+                    <span className="absolute -top-px left-1/4 right-1/4 h-0.5 rounded-full bg-blue-500" />
                   )}
                   <Icon
                     name={icon}
                     size={22}
                     fill={active ? 'currentColor' : 'none'}
-                    className={active ? ACTIVE_COLOR[accent] || 'text-primary-500' : 'text-primary-400/60'}
+                    className={active ? `${ACTIVE_COLOR[accent]}` : 'text-slate-400'}
                     strokeWidth={active ? 2 : 1.75}
                   />
                   <span
                     className={`text-[10px] mt-0.5 ${
-                      active ? `${ACTIVE_COLOR[accent] || 'text-primary-500'} font-semibold` : 'text-primary-400/60'
+                      active ? `${ACTIVE_COLOR[accent]} font-semibold` : 'text-slate-400'
                     }`}
                   >
                     {label}
@@ -283,4 +330,9 @@ export default function App() {
       />
     </div>
   )
+}
+
+// 简单工具：判断图标是否有填充态（避免运行时警告）
+function filledPathsCheck(name) {
+  return ['home', 'heart', 'star', 'bookmark', 'bell'].includes(name)
 }
