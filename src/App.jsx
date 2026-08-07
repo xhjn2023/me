@@ -95,56 +95,56 @@ export default function App() {
   const userName = user.email?.split('@')[0] || '我'
 
   return (
-    <div className="min-h-screen bg-[#f5f9ff] md:flex text-slate-800">
-      {/* 桌面端左侧窄侧边栏（图标在上 + 文字在下，参考幼升小工作台风格） */}
+    <div className="min-h-screen bg-[#f5f9ff] flex text-slate-800">
+      {/* 左侧窄侧边栏（图标在上 + 文字在下；移动端 w-16，桌面端 w-20） */}
       <aside
-        className="hidden md:flex md:flex-col md:fixed md:inset-y-0 md:left-0 md:w-20 bg-white/70 backdrop-blur-xl border-r border-slate-100 z-30"
+        className="flex flex-col fixed inset-y-0 left-0 w-16 md:w-20 bg-white/75 backdrop-blur-xl border-r border-slate-100 z-30"
       >
         {/* 顶部：返回 + 头像 + 昵称 */}
         <div
-          className="flex flex-col items-center gap-1.5 pt-3 pb-4 border-b border-slate-100"
-          style={{ paddingTop: 'calc(var(--safe-top) + 0.75rem)' }}
+          className="flex flex-col items-center gap-1 pt-2 pb-3 md:pt-3 md:pb-4 border-b border-slate-100"
+          style={{ paddingTop: 'calc(var(--safe-top) + 0.5rem)' }}
         >
-          <button className="self-start ml-3 p-1 rounded-full text-slate-400 hover:bg-slate-100 transition btn-press">
-            <Icon name="chevronLeft" size={18} />
+          <button className="self-start ml-2 md:ml-3 p-1 rounded-full text-slate-400 hover:bg-slate-100 transition btn-press">
+            <Icon name="chevronLeft" size={16} />
           </button>
-          <div className="relative w-11 h-11">
-            <span className="w-11 h-11 rounded-full gemini-gradient-soft flex items-center justify-center text-white text-sm font-medium shadow-sm shadow-indigo-300/40 ring-2 ring-white">
+          <div className="relative w-9 h-9 md:w-11 md:h-11 shrink-0">
+            <span className="w-full h-full rounded-full gemini-gradient-soft flex items-center justify-center text-white text-xs md:text-sm font-medium shadow-sm shadow-indigo-300/40 ring-2 ring-white">
               {(user.email || '?')[0].toUpperCase()}
             </span>
           </div>
-          <p className="text-[11px] font-medium text-slate-600 truncate max-w-[72px]">{userName}</p>
+          <p className="text-[10px] md:text-[11px] font-medium text-slate-600 truncate max-w-[56px] md:max-w-[72px] leading-tight">{userName}</p>
         </div>
 
         {/* 分类导航 */}
-        <nav className="flex-1 py-3 overflow-y-auto no-scrollbar">
-          <div className="space-y-1 px-2">
+        <nav className="flex-1 py-2 md:py-3 overflow-y-auto no-scrollbar">
+          <div className="space-y-0.5 md:space-y-1 px-1.5 md:px-2">
             {TABS.map(({ key, label, icon, iconBg, barBg, accent }) => {
               const active = tab === key
-              const IconComp = active && filledPathsCheck(icon) ? IconFilled : Icon
               return (
                 <button
                   key={key}
                   onClick={() => setTab(key)}
-                  className="w-full flex flex-col items-center gap-1 py-2.5 rounded-xl btn-press transition relative"
+                  className="w-full flex flex-col items-center gap-0.5 md:gap-1 py-2 md:py-2.5 rounded-xl btn-press transition relative"
                 >
                   {active && (
-                    <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-full ${barBg}`} />
+                    <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-7 md:h-8 w-1 rounded-full ${barBg}`} />
                   )}
                   <span
-                    className={`w-10 h-10 rounded-2xl flex items-center justify-center transition shadow-sm ${
+                    className={`w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center transition shadow-sm ${
                       active ? iconBg : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-500'
                     }`}
                   >
                     <Icon
                       name={icon}
-                      size={20}
+                      size={18}
+                      className="md:w-5 md:h-5"
                       fill={active ? 'currentColor' : 'none'}
                       strokeWidth={active ? 2 : 1.75}
                     />
                   </span>
                   <span
-                    className={`text-[10px] ${
+                    className={`text-[9px] md:text-[10px] leading-tight ${
                       active ? `${ACTIVE_COLOR[accent]} font-semibold` : 'text-slate-400'
                     }`}
                   >
@@ -158,24 +158,24 @@ export default function App() {
 
         {/* 底部：退出 */}
         <div
-          className="py-3 border-t border-slate-100"
-          style={{ paddingBottom: 'calc(var(--safe-bottom) + 0.75rem)' }}
+          className="py-2 md:py-3 border-t border-slate-100"
+          style={{ paddingBottom: 'calc(var(--safe-bottom) + 0.5rem)' }}
         >
           <button
             onClick={() => setShowLogoutConfirm(true)}
-            className="w-full flex flex-col items-center gap-1 py-2 text-slate-400 hover:text-rose-500 transition btn-press mx-auto max-w-[60px] rounded-xl"
+            className="w-full flex flex-col items-center gap-0.5 md:gap-1 py-1.5 md:py-2 text-slate-400 hover:text-rose-500 transition btn-press mx-auto max-w-[52px] md:max-w-[60px] rounded-xl"
             title="退出登录"
           >
-            <span className="w-10 h-10 rounded-2xl bg-slate-50 hover:bg-rose-50 flex items-center justify-center transition">
-              <Icon name="logOut" size={18} />
+            <span className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-slate-50 hover:bg-rose-50 flex items-center justify-center transition">
+              <Icon name="logOut" size={16} className="md:w-[18px] md:h-[18px]" />
             </span>
-            <span className="text-[10px]">退出</span>
+            <span className="text-[9px] md:text-[10px]">退出</span>
           </button>
         </div>
       </aside>
 
       {/* 主区域 */}
-      <div className="flex-1 md:pl-20 max-w-md md:max-w-none mx-auto">
+      <div className="flex-1 pl-16 md:pl-20 max-w-none mx-auto">
         {/* 移动端顶部栏 */}
         <header
           className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 bg-white/80 backdrop-blur-xl border-b border-slate-100"
@@ -265,7 +265,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="min-h-screen pb-20 md:pb-10">
+        <main className="min-h-screen pb-10">
           <div className="md:max-w-3xl md:mx-auto md:px-8 md:py-6">
             <div key={tab} className="animate-fade-in">
               {tab === 'dashboard' && <Dashboard onNavigate={setTab} />}
@@ -278,43 +278,6 @@ export default function App() {
             </div>
           </div>
         </main>
-
-        {/* 移动端底部 Tab 导航（保持原模式） */}
-        <nav
-          className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/85 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_20px_rgba(15,23,42,0.04)]"
-          style={{ paddingBottom: 'var(--safe-bottom)' }}
-        >
-          <div className="flex">
-            {TABS.map(({ key, label, icon, accent }) => {
-              const active = tab === key
-              return (
-                <button
-                  key={key}
-                  onClick={() => setTab(key)}
-                  className="flex-1 flex flex-col items-center py-2.5 btn-press relative"
-                >
-                  {active && (
-                    <span className="absolute -top-px left-1/4 right-1/4 h-0.5 rounded-full bg-blue-500" />
-                  )}
-                  <Icon
-                    name={icon}
-                    size={22}
-                    fill={active ? 'currentColor' : 'none'}
-                    className={active ? `${ACTIVE_COLOR[accent]}` : 'text-slate-400'}
-                    strokeWidth={active ? 2 : 1.75}
-                  />
-                  <span
-                    className={`text-[10px] mt-0.5 ${
-                      active ? `${ACTIVE_COLOR[accent]} font-semibold` : 'text-slate-400'
-                    }`}
-                  >
-                    {label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </nav>
       </div>
 
       <ToastContainer />
