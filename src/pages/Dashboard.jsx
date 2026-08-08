@@ -2,7 +2,6 @@ import { tasksApi, studyRecordsApi, todayStr, formatDateCN, getStreakDays } from
 import { useAsyncData } from '../hooks/useAsyncData'
 import { useEffect, useMemo, useState } from 'react'
 import { PageHeader, Stat, Card, Icon } from '../components/ui'
-import WeatherCard from '../components/WeatherCard'
 import { HEALING_QUOTES } from './healingQuotes'
 
 const MODULES = [
@@ -108,9 +107,6 @@ export default function Dashboard({ onNavigate }) {
           />
         </div>
       </div>
-
-      {/* 每日天气 */}
-      <WeatherCard />
 
       {/* 模块快捷入口 */}
       <div className="px-4 mt-5">
