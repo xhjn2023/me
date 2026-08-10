@@ -1,0 +1,13 @@
+{
+  "id": "conv-1786323184072-hqgkwwvge",
+  "providerId": "claude",
+  "title": "仓库下包含的内容",
+  "titleGenerationStatus": "failed",
+  "createdAt": 1786323184090,
+  "lastActivityAt": 1786323204596,
+  "sessionId": "bfd1a648-ca8c-4b8a-89bf-0ba2610f1772",
+  "selectedModel": "opus",
+  "providerState": {
+    "providerSessionId": "bfd1a648-ca8c-4b8a-89bf-0ba2610f1772"
+  }
+}

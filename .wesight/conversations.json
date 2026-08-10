@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "conversations": [
+    {
+      "id": "conv_msminq2e_tjfl5mqb",
+      "title": "仓库下包含的内容",
+      "agentId": "claude",
+      "createdAt": 1786323111349,
+      "updatedAt": 1786323277061,
+      "messages": [
+        {
+          "id": "msg_msmir9kx_c38x8uje",
+          "role": "user",
+          "content": "仓库下包含的内容",
+          "createdAt": 1786323276609,
+          "agentId": "claude"
+        },
+        {
+          "id": "msg_msmir9ky_1ydh13en",
+          "role": "error",
+          "content": "\nFailed to start claude: spawn C:\\Users\\14143\\AppData\\Roaming\\nodejs\\node-v26.4.0-win-x64\\claude ENOENT",
+          "createdAt": 1786323276610,
+          "agentId": "claude",
+          "metadata": {
+            "process": [],
+            "knowledgeBased": false,
+            "durationMs": 439
+          }
+        }
+      ],
+      "mode": "chat"
+    }
+  ]
+}
