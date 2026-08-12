@@ -60,7 +60,7 @@ jobs:
           echo "=== 3. Deploy (branch: $BRANCH_NAME, slug: $BRANCH_SLUG) ==="
           DEPLOY_OUT=$(npx wrangler@latest pages deploy dist \
             --project-name=me-workbench \
-            --branch="$BRANCH_NAME" 2>&1)
+            --branch="$BRANCH_SLUG" 2>&1)
           DEPLOY_CODE=$?
           echo "--- wrangler output ---"
           echo "$DEPLOY_OUT"
@@ -90,7 +90,17 @@ jobs:
             PREVIEW_URL="$EXTRACTED_URL"
           fi
 
-          # 7. 写入 GitHub Actions Summary
+          # 7. 验证部署是否可访问
+          echo ""
+          echo "=== 7. Verify deployment ==="
+          sleep 5
+          if curl -sI "$PREVIEW_URL" | grep -q "200\|301\|302"; then
+            echo "✅ Deployment verified at $PREVIEW_URL"
+          else
+            echo "⚠️ Deployment not yet accessible at $PREVIEW_URL, but continuing"
+          fi
+
+          # 8. 写入 GitHub Actions Summary
           echo ""
           echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
           echo "## 🚀 预览地址" >> $GITHUB_STEP_SUMMARY
