@@ -289,7 +289,7 @@ export default function Medicine() {
           <div className="p-4 max-h-80 overflow-y-auto">
             {tab === 'checkin' && (
               <>
-                <CheckinHistory dates={sortedCheckinDates} />
+                <CheckinHistory dates={sortedCheckinDates} checkins={checkins} />
                 <Button
                   variant="secondary"
                   size="md"
@@ -447,7 +447,7 @@ function SettingsPanel({ state, onChange }) {
 }
 
 // ─── 打卡历史 ───
-function CheckinHistory({ dates }) {
+function CheckinHistory({ dates, checkins }) {
   if (dates.length === 0) {
     return (
       <EmptyState
@@ -459,20 +459,25 @@ function CheckinHistory({ dates }) {
   }
   return (
     <div className="space-y-2">
-      {dates.map(date => (
-        <div
-          key={date}
-          className="flex items-center justify-between p-2.5 bg-rose-50/50 rounded-xl"
-        >
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-rose-100 text-rose-500 flex items-center justify-center">
-              <Icon name="check" size={14} />
+      {dates.map(date => {
+        const isMakeup = checkins[date]?.is_makeup
+        return (
+          <div
+            key={date}
+            className="flex items-center justify-between p-2.5 bg-rose-50/50 rounded-xl"
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-rose-100 text-rose-500 flex items-center justify-center">
+                <Icon name="check" size={14} />
+              </span>
+              <span className="text-sm text-slate-700">{date}</span>
+            </div>
+            <span className={`text-xs ${isMakeup ? 'text-amber-500 font-medium' : 'text-slate-400'}`}>
+              {isMakeup ? '补打卡' : '已打卡'}
             </span>
-            <span className="text-sm text-slate-700">{date}</span>
           </div>
-          <span className="text-xs text-slate-400">已打卡</span>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

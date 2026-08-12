@@ -181,7 +181,7 @@ async function performCheckin(date, { makeup = false } = {}) {
   }
   const state = await getState()
   const newRemaining = Math.max(0, state.remainingPills - state.dailyDose)
-  await medicineCheckinsApi.add(date, state.dailyDose)
+  await medicineCheckinsApi.add(date, state.dailyDose, makeup)
   const next = await saveState({ remainingPills: newRemaining })
   const note = `第${state.bottleNumber}瓶打卡，剩余${newRemaining}颗`
   await pushLog(makeup ? 'makeup_checkin' : 'checkin', makeup ? `补打卡 ${date}，${note}` : note)
@@ -204,7 +204,7 @@ export async function uncheckinToday() {
   const checkins = await getCheckins()
   if (!checkins[today]) return { ok: false, reason: '今日未打卡' }
   const state = await getState()
-  const restored = state.remainingPills + (checkins[today] || state.dailyDose)
+  const restored = state.remainingPills + (checkins[today]?.dose || state.dailyDose)
   await medicineCheckinsApi.remove(today)
   const next = await saveState({ remainingPills: Math.min(9999, restored) })
   await pushLog('uncheckin', '取消今日打卡')

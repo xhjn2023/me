@@ -376,12 +376,15 @@ export const medicineCheckinsApi = {
     const { data, error } = await supabase.from('medicine_checkins').select('*').eq('user_id', userId)
     if (error) throw error
     const map = {}
-    for (const row of data || []) map[row.date] = row.dose
+    for (const row of data || []) map[row.date] = { dose: row.dose, is_makeup: row.is_makeup || false }
     return map
   },
-  async add(date, dose) {
+  async add(date, dose, isMakeup = false) {
     const userId = await uid()
-    const { error } = await supabase.from('medicine_checkins').upsert({ date, dose, user_id: userId }, { onConflict: 'user_id,date' })
+    const { error } = await supabase.from('medicine_checkins').upsert(
+      { date, dose, user_id: userId, is_makeup: isMakeup },
+      { onConflict: 'user_id,date' }
+    )
     if (error) throw error
   },
   async remove(date) {
