@@ -1,17 +1,32 @@
-import { useState, useEffect } from 'react'
-import Dashboard from './pages/Dashboard'
-import Work from './pages/Work'
-import Study from './pages/Study'
-import Life from './pages/Life'
-import SideWork from './pages/SideWork'
-import Review from './pages/Review'
-import Medicine from './pages/Medicine'
-import English from './pages/English'
-import Login from './pages/Login'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { getCurrentUser, onAuthStateChange, signOut } from './db/auth'
 import { initializeData } from './db/seed'
 import { Icon, IconFilled } from './components/ui/icons'
 import { ToastContainer, ConfirmDialog } from './components/ui'
+
+// 路由级代码分割：仅首屏加载 Dashboard，其余页面按需加载
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Work = lazy(() => import('./pages/Work'))
+const Study = lazy(() => import('./pages/Study'))
+const Life = lazy(() => import('./pages/Life'))
+const SideWork = lazy(() => import('./pages/SideWork'))
+const Review = lazy(() => import('./pages/Review'))
+const Medicine = lazy(() => import('./pages/Medicine'))
+const English = lazy(() => import('./pages/English'))
+const Login = lazy(() => import('./pages/Login'))
+
+// 页面加载时的骨架屏占位
+const PageLoader = () => (
+  <div className="animate-fade-in p-4 space-y-4">
+    <div className="h-8 w-2/3 bg-slate-200/60 rounded-lg animate-pulse" />
+    <div className="grid grid-cols-3 gap-2">
+      {[1, 2, 3].map(i => (
+        <div key={i} className="h-16 bg-white/60 rounded-xl animate-pulse" />
+      ))}
+    </div>
+    <div className="h-32 bg-white/60 rounded-xl animate-pulse" />
+  </div>
+)
 
 const TABS = [
   // 图标主题色（柔和多彩）+ 选中左侧竖条色
@@ -87,7 +102,9 @@ export default function App() {
   if (!user) {
     return (
       <>
-        <Login />
+        <Suspense fallback={<PageLoader />}>
+          <Login />
+        </Suspense>
         <ToastContainer />
       </>
     )
@@ -269,16 +286,18 @@ export default function App() {
 
         <main className="min-h-screen pb-10">
           <div className="md:max-w-3xl md:mx-auto md:px-8 md:py-6">
-            <div key={tab} className="animate-fade-in">
-              {tab === 'dashboard' && <Dashboard onNavigate={setTab} />}
-              {tab === 'work' && <Work />}
-              {tab === 'study' && <Study />}
-              {tab === 'english' && <English />}
-              {tab === 'life' && <Life />}
-              {tab === 'medicine' && <Medicine />}
-              {tab === 'side' && <SideWork />}
-              {tab === 'review' && <Review />}
-            </div>
+            <Suspense fallback={<PageLoader />}>
+              <div key={tab} className="animate-fade-in">
+                {tab === 'dashboard' && <Dashboard onNavigate={setTab} />}
+                {tab === 'work' && <Work />}
+                {tab === 'study' && <Study />}
+                {tab === 'english' && <English />}
+                {tab === 'life' && <Life />}
+                {tab === 'medicine' && <Medicine />}
+                {tab === 'side' && <SideWork />}
+                {tab === 'review' && <Review />}
+              </div>
+            </Suspense>
           </div>
         </main>
       </div>

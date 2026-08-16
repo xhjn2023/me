@@ -36,12 +36,16 @@ export default function Dashboard({ onNavigate }) {
     if (todayTasks) getStreakDays(todayTasks, 'date').then(setStreak)
   }, [todayTasks])
 
+  // 并行获取本周学习记录（与任务数据并行，不阻塞首屏渲染）
   useEffect(() => {
+    let cancelled = false
     const weekDates = getWeekDateRange()
     studyRecordsApi.getByDates(weekDates).then(records => {
+      if (cancelled) return
       const total = records.reduce((sum, r) => sum + (r.duration || 0), 0)
       setStudyTime(Math.round(total / 60))
     })
+    return () => { cancelled = true }
   }, [])
 
   // 监听全局刷新

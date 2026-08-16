@@ -321,6 +321,88 @@ export const lifeRecordsApi = {
   }
 }
 
+// ─── Daily Records（生活 · 每日记录）───
+export const dailyRecordsApi = {
+  // 取某一天记录（每用户每天唯一，返回单条或 null）
+  async getByDate(date) {
+    const userId = await uid()
+    const { data, error } = await supabase
+      .from('daily_records').select('*').eq('user_id', userId).eq('date', date)
+      .maybeSingle()
+    if (error) throw error
+    return data || null
+  },
+  // 取某日期区间记录（升序，用于历史列表 / 周聚合）
+  async getByRange(startDate, endDate) {
+    const userId = await uid()
+    const { data, error } = await supabase
+      .from('daily_records').select('*').eq('user_id', userId)
+      .gte('date', startDate).lte('date', endDate)
+      .order('date', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+  // upsert：按 (user_id, date) 唯一约束，重复日期覆盖更新
+  async upsert(data) {
+    const userId = await uid()
+    const now = Date.now()
+    const row = { ...data, user_id: userId, updated_at: now }
+    const { data: result, error } = await supabase
+      .from('daily_records')
+      .upsert(row, { onConflict: 'user_id,date' })
+      .select()
+      .single()
+    if (error) throw error
+    return result
+  },
+  async delete(id) {
+    const userId = await uid()
+    const { error } = await supabase.from('daily_records').delete().eq('id', id).eq('user_id', userId)
+    if (error) throw error
+  }
+}
+
+// ─── Weekly Reviews（生活 · 每周复盘）───
+export const weeklyReviewsApi = {
+  // 取某周复盘（week_start 为周一日期，单条或 null）
+  async getByWeek(weekStart) {
+    const userId = await uid()
+    const { data, error } = await supabase
+      .from('weekly_reviews').select('*').eq('user_id', userId).eq('week_start', weekStart)
+      .maybeSingle()
+    if (error) throw error
+    return data || null
+  },
+  // 取历史周复盘（倒序）
+  async getAll(limit = 30) {
+    const userId = await uid()
+    const { data, error } = await supabase
+      .from('weekly_reviews').select('*').eq('user_id', userId)
+      .order('week_start', { ascending: false }).limit(limit)
+    if (error) throw error
+    return data || []
+  },
+  // upsert：按 (user_id, week_start) 唯一约束
+  async upsert(data) {
+    const userId = await uid()
+    const now = Date.now()
+    const row = { ...data, user_id: userId, updated_at: now }
+    if (!row.created_at) row.created_at = now
+    const { data: result, error } = await supabase
+      .from('weekly_reviews')
+      .upsert(row, { onConflict: 'user_id,week_start' })
+      .select()
+      .single()
+    if (error) throw error
+    return result
+  },
+  async delete(id) {
+    const userId = await uid()
+    const { error } = await supabase.from('weekly_reviews').delete().eq('id', id).eq('user_id', userId)
+    if (error) throw error
+  }
+}
+
 // ─── Side Projects ───
 export const sideProjectsApi = {
   async getAll() {

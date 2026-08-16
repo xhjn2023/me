@@ -11,6 +11,17 @@ const enablePwa = process.env.DISABLE_PWA !== '1'
 
 export default defineConfig({
   base,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-fsrs': ['ts-fsrs'],
+        }
+      }
+    }
+  },
   plugins: [
     react(),
     enablePwa && VitePWA({
