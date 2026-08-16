@@ -3,15 +3,18 @@ import { Icon } from '../components/ui'
 import DailyTab from './life/DailyTab'
 import WeeklyTab from './life/WeeklyTab'
 import NotesTab from './life/NotesTab'
+import CognitionTab from './life/CognitionTab'
 
-// 生活模块：每日记录 + 每周复盘 + 随笔
+// 生活模块：每日记录 + 每周复盘 + 随笔 + 认知重塑
 // - 每日记录：结构化记录完成事项 / 投入时长 / 情绪精力 / 开销 / 明日计划
 // - 每周复盘：自动汇总本周每日记录，辅助生成亮点 / 问题 / 改进
 // - 随笔：轻量化随笔记事本（原生活模块功能保留）
+// - 认知重塑：写感想 → 规则引擎客观批判性反馈 → 识别认知偏差 → 重塑
 const TABS = [
   { key: 'daily', label: '每日记录', icon: 'calendar', component: DailyTab },
   { key: 'weekly', label: '每周复盘', icon: 'clipboardList', component: WeeklyTab },
   { key: 'notes', label: '随笔', icon: 'notebookPen', component: NotesTab },
+  { key: 'cognition', label: '认知重塑', icon: 'brainCircuit', component: CognitionTab },
 ]
 
 export default function Life() {

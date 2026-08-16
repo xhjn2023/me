@@ -575,3 +575,103 @@ export const englishCardsApi = {
     if (error) throw error
   }
 }
+
+// ─── Cognition Entries（认知重塑 · 思考/感想条目）───
+export const cognitionEntriesApi = {
+  // 取历史条目（倒序，带分页）
+  async getAll({ limit = 50, category } = {}) {
+    const userId = await uid()
+    let q = supabase.from('cognition_entries').select('*').eq('user_id', userId)
+    if (category) q = q.eq('category', category)
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(limit)
+    if (error) throw error
+    return data || []
+  },
+  // 取单条（用于详情页）
+  async getById(id) {
+    const userId = await uid()
+    const { data, error } = await supabase
+      .from('cognition_entries').select('*').eq('user_id', userId).eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    return data || null
+  },
+  // 新增
+  async add(data) {
+    const userId = await uid()
+    const now = Date.now()
+    const row = {
+      ...toDbRow(data),
+      user_id: userId,
+      created_at: now,
+      updated_at: now,
+    }
+    const { data: result, error } = await supabase
+      .from('cognition_entries').insert(row).select().single()
+    if (error) throw error
+    return result
+  },
+  async update(id, data) {
+    const userId = await uid()
+    const { data: row, error } = await supabase
+      .from('cognition_entries')
+      .update({ ...toDbRow(data), updated_at: Date.now() })
+      .eq('id', id).eq('user_id', userId).select().single()
+    if (error) throw error
+    return row
+  },
+  async delete(id) {
+    const userId = await uid()
+    const { error } = await supabase.from('cognition_entries').delete().eq('id', id).eq('user_id', userId)
+    if (error) throw error
+  }
+}
+
+// ─── Cognition Feedbacks（认知重塑 · AI/规则引擎反馈）───
+export const cognitionFeedbacksApi = {
+  // 根据 entry_id 取反馈（单条或 null）
+  async getByEntryId(entryId) {
+    const userId = await uid()
+    const { data, error } = await supabase
+      .from('cognition_feedbacks').select('*').eq('user_id', userId).eq('entry_id', entryId)
+      .maybeSingle()
+    if (error) throw error
+    return data || null
+  },
+  // upsert：同一 entry_id 重新生成时覆盖
+  async upsert(entryId, feedback) {
+    const userId = await uid()
+    const now = Date.now()
+    const row = {
+      entry_id: entryId,
+      user_id: userId,
+      biases: feedback.biases || [],
+      evidence: feedback.evidence || { support: [], against: [] },
+      perspectives: feedback.perspectives || [],
+      reframe: feedback.reframe || '',
+      challenges: feedback.challenges || [],
+      summary: feedback.summary || '',
+      score: feedback.score ?? 0,
+      raw_analysis: feedback.rawAnalysis || '',
+      created_at: now,
+    }
+    const { data: result, error } = await supabase
+      .from('cognition_feedbacks')
+      .upsert(row, { onConflict: 'entry_id' })
+      .select()
+      .single()
+    if (error) throw error
+    return result
+  },
+  // 取所有历史反馈（用于统计：最常见偏差、分数趋势）
+  async getAll(limit = 100) {
+    const userId = await uid()
+    const { data, error } = await supabase
+      .from('cognition_feedbacks').select('*, cognition_entries!inner(date, category)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) throw error
+    return data || []
+  }
+}
