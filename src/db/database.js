@@ -456,3 +456,40 @@ export const medicineLogsApi = {
     if (error) throw error
   }
 }
+
+// ─── English Cards（英语单词卡 · FSRS 间隔重复）───
+export const englishCardsApi = {
+  async getByBook(book) {
+    const userId = await uid()
+    let q = supabase.from('english_cards').select('*').eq('user_id', userId)
+    if (book) q = q.eq('book', book)
+    const { data, error } = await q.order('created_at', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+  async getDue(book, now = Date.now()) {
+    const userId = await uid()
+    let q = supabase.from('english_cards').select('*').eq('user_id', userId).lte('due', now)
+    if (book) q = q.eq('book', book)
+    const { data, error } = await q.order('due', { ascending: true }).limit(100)
+    if (error) throw error
+    return data || []
+  },
+  async add(data) {
+    const row = await withUid(data)
+    const { data: result, error } = await supabase.from('english_cards').insert(row).select().single()
+    if (error) throw error
+    return result
+  },
+  async update(id, data) {
+    const userId = await uid()
+    const { data: row, error } = await supabase.from('english_cards').update(data).eq('id', id).eq('user_id', userId).select().single()
+    if (error) throw error
+    return row
+  },
+  async delete(id) {
+    const userId = await uid()
+    const { error } = await supabase.from('english_cards').delete().eq('id', id).eq('user_id', userId)
+    if (error) throw error
+  }
+}

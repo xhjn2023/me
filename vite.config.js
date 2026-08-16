@@ -6,11 +6,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 // GitHub Pages 部署在 /me/ 子路径。同一份代码自动兼容两种部署。
 const base = process.env.CF_PAGES === '1' ? '/' : '/me/'
 
+// 临时禁用 PWA（DISABLE_PWA=1）用于排查 workbox-build 构建问题，默认开启
+const enablePwa = process.env.DISABLE_PWA !== '1'
+
 export default defineConfig({
   base,
   plugins: [
     react(),
-    VitePWA({
+    enablePwa && VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
@@ -33,7 +36,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
       }
     })
-  ],
+  ].filter(Boolean),
   server: {
     host: true,
     port: 5173,

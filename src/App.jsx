@@ -6,6 +6,7 @@ import Life from './pages/Life'
 import SideWork from './pages/SideWork'
 import Review from './pages/Review'
 import Medicine from './pages/Medicine'
+import English from './pages/English'
 import Login from './pages/Login'
 import { getCurrentUser, onAuthStateChange, signOut } from './db/auth'
 import { initializeData } from './db/seed'
@@ -17,6 +18,7 @@ const TABS = [
   { key: 'dashboard', label: '首页',   icon: 'home',          accent: 'indigo',  iconBg: 'bg-indigo-100 text-indigo-600',   barBg: 'bg-indigo-500' },
   { key: 'work',      label: '工作',   icon: 'briefcase',     accent: 'blue',    iconBg: 'bg-blue-100 text-blue-600',       barBg: 'bg-blue-500' },
   { key: 'study',     label: '学习',   icon: 'graduationCap', accent: 'emerald', iconBg: 'bg-emerald-100 text-emerald-600', barBg: 'bg-emerald-500' },
+  { key: 'english',   label: '英语',   icon: 'languages',     accent: 'blue',    iconBg: 'bg-blue-100 text-blue-600',       barBg: 'bg-blue-500' },
   { key: 'life',      label: '生活',   icon: 'leaf',          accent: 'teal',    iconBg: 'bg-teal-100 text-teal-600',       barBg: 'bg-teal-500' },
   { key: 'medicine',  label: '用药',   icon: 'pill',          accent: 'rose',    iconBg: 'bg-rose-100 text-rose-600',       barBg: 'bg-rose-500' },
   { key: 'side',      label: '副业',   icon: 'rocket',        accent: 'orange',  iconBg: 'bg-orange-100 text-orange-600',   barBg: 'bg-orange-500' },
@@ -271,6 +273,7 @@ export default function App() {
               {tab === 'dashboard' && <Dashboard onNavigate={setTab} />}
               {tab === 'work' && <Work />}
               {tab === 'study' && <Study />}
+              {tab === 'english' && <English />}
               {tab === 'life' && <Life />}
               {tab === 'medicine' && <Medicine />}
               {tab === 'side' && <SideWork />}

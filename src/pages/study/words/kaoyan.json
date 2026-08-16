@@ -1,0 +1,22 @@
+[
+  { "word": "advocate", "phonetic": "/ˈædvəkeɪt/", "meaning": "v. 提倡 n. 拥护者", "sentence": "Many experts advocate a balanced approach to education.", "translation": "许多专家提倡一种平衡的教育方式。" },
+  { "word": "alleviate", "phonetic": "/əˈliːvieɪt/", "meaning": "v. 减轻；缓解", "sentence": "The medicine helped alleviate her pain.", "translation": "这种药帮助减轻了她的疼痛。" },
+  { "word": "compensate", "phonetic": "/ˈkɒmpenseɪt/", "meaning": "v. 补偿；弥补", "sentence": "Nothing can compensate for the loss of time.", "translation": "什么都无法弥补时间的损失。" },
+  { "word": "controversial", "phonetic": "/ˌkɒntrəˈvɜːʃl/", "meaning": "adj. 有争议的", "sentence": "The proposal remains highly controversial.", "translation": "该提案仍然极具争议。" },
+  { "word": "criterion", "phonetic": "/kraɪˈtɪəriən/", "meaning": "n. 标准；准则", "sentence": "Cost is only one criterion for the decision.", "translation": "成本只是决策的标准之一。" },
+  { "word": "deduce", "phonetic": "/dɪˈdjuːs/", "meaning": "v. 推断；演绎", "sentence": "We can deduce the answer from the evidence.", "translation": "我们可以从证据中推断出答案。" },
+  { "word": "deliberate", "phonetic": "/dɪˈlɪbərət/", "meaning": "adj. 故意的；深思熟虑的", "sentence": "The mistake was not deliberate.", "translation": "这个错误并非故意为之。" },
+  { "word": "diminish", "phonetic": "/dɪˈmɪnɪʃ/", "meaning": "v. 减少；削弱", "sentence": "The influence of the platform has diminished.", "translation": "该平台的影响力已经减弱。" },
+  { "word": "distinguish", "phonetic": "/dɪˈstɪŋɡwɪʃ/", "meaning": "v. 区分；辨别", "sentence": "It is hard to distinguish truth from rumor.", "translation": "很难区分真相与谣言。" },
+  { "word": "elaborate", "phonetic": "/ɪˈlæbərət/", "meaning": "v. 详述 adj. 精细的", "sentence": "Please elaborate on your plan.", "translation": "请详细说明你的计划。" },
+  { "word": "emerge", "phonetic": "/ɪˈmɜːdʒ/", "meaning": "v. 出现；浮现", "sentence": "New opportunities emerge from change.", "translation": "新的机会从变化中涌现。" },
+  { "word": "enhance", "phonetic": "/ɪnˈhɑːns/", "meaning": "v. 提高；增强", "sentence": "Practice can enhance your skills.", "translation": "练习可以提高你的技能。" },
+  { "word": "explicit", "phonetic": "/ɪkˈsplɪsɪt/", "meaning": "adj. 明确的；清楚的", "sentence": "She gave explicit instructions.", "translation": "她给出了明确的指示。" },
+  { "word": "facilitate", "phonetic": "/fəˈsɪlɪteɪt/", "meaning": "v. 促进；使便利", "sentence": "Technology can facilitate learning.", "translation": "技术可以促进学习。" },
+  { "word": "inevitable", "phonetic": "/ɪnˈevɪtəbl/", "meaning": "adj. 不可避免的", "sentence": "Change is inevitable in life.", "translation": "变化在生活中是不可避免的。" },
+  { "word": "justify", "phonetic": "/ˈdʒʌstɪfaɪ/", "meaning": "v. 证明…正当", "sentence": "Can you justify your decision?", "translation": "你能证明你的决定是合理的吗？" },
+  { "word": "notion", "phonetic": "/ˈnəʊʃn/", "meaning": "n. 概念；观念", "sentence": "The notion of fairness varies across cultures.", "translation": "公平的观念因文化而异。" },
+  { "word": "obscure", "phonetic": "/əbˈskjʊə(r)/", "meaning": "adj. 晦涩的；模糊的", "sentence": "The meaning of the poem is obscure.", "translation": "这首诗的含义晦涩难懂。" },
+  { "word": "preliminary", "phonetic": "/prɪˈlɪmɪnəri/", "meaning": "adj. 初步的；预备的", "sentence": "The preliminary results look promising.", "translation": "初步结果看起来很有希望。" },
+  { "word": "undermine", "phonetic": "/ˌʌndəˈmaɪn/", "meaning": "v. 削弱；破坏", "sentence": "Constant criticism can undermine confidence.", "translation": "持续的批评会削弱信心。" }
+]
