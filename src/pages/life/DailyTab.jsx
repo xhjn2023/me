@@ -10,6 +10,7 @@ import {
 } from '../../db/lifeStore'
 import DailyEditor from './DailyEditor'
 import NoteCalendar from './NoteCalendar'
+import CognitionInsight from './CognitionInsight'
 
 // 生活模块「每日记录」：结构化记录每天完成事项、投入时长、情绪精力、开销、明日计划
 export default function DailyTab() {
@@ -175,6 +176,14 @@ export default function DailyTab() {
               <Section icon="target" title="明日最重要的一件事">
                 <p className="text-sm text-slate-700 leading-relaxed">{rec.tomorrowTask}</p>
               </Section>
+            )}
+
+            {/* 认知重塑洞察 */}
+            {rec.doneItems?.trim() && (
+              <CognitionInsight
+                text={rec.doneItems}
+                historyTexts={recentList.map(r => r.doneItems).filter(Boolean)}
+              />
             )}
 
             {/* 操作 */}

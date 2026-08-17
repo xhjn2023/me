@@ -9,6 +9,7 @@ import {
   weekRangeLabel, weekNumberLabel, prevWeek, nextWeek,
   aggregateWeek, buildReviewDraft, moodOf, expensesTotal
 } from '../../db/lifeStore'
+import CognitionInsight from './CognitionInsight'
 
 // 生活模块「每周复盘」：自动汇总本周每日记录，辅助生成亮点/问题/改进
 export default function WeeklyTab() {
@@ -219,6 +220,10 @@ export default function WeeklyTab() {
                 <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{review.improvement}</p>
               </div>
             )}
+            {/* 认知重塑洞察：综合复盘文本分析 */}
+            <CognitionInsight
+              text={[review.highlights, review.problems, review.improvement].filter(Boolean).join('\n\n')}
+            />
             <div className="flex justify-end mt-3 pt-2 border-t border-slate-100">
               <button onClick={() => setConfirmDelete(true)} className="text-xs text-slate-400 hover:text-rose-500 transition flex items-center gap-1">
                 <Icon name="trash" size={12} /> 删除复盘

@@ -242,6 +242,7 @@ export default function NotesTab() {
               onOpen={openEditor}
               onToggleFavorite={n => handleAction('favorite', n)}
               onAction={handleAction}
+              historyTexts={recordsList.filter(n => n.id !== note.id).map(n => n.content).filter(Boolean)}
             />
           ))
         )}

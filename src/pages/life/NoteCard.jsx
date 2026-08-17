@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { Card, BottomSheet, Icon, ConfirmDialog, showToast } from '../../components/ui'
 import { MOOD_MAP, tagColor } from './constants'
+import CognitionInsight from './CognitionInsight'
 
 const LONG_PRESS_MS = 500
 
@@ -14,7 +15,8 @@ export default function NoteCard({
   note,
   onOpen,
   onToggleFavorite,
-  onAction  // (action, note) => void  action: edit|pin|favorite|poster|archive|delete
+  onAction,  // (action, note) => void  action: edit|pin|favorite|poster|archive|delete
+  historyTexts = []  // 同一天其他笔记的文本，用于跨时间观点变化追踪
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
@@ -141,6 +143,9 @@ export default function NoteCard({
             </button>
           </div>
         </div>
+
+        {/* 认知重塑洞察 */}
+        <CognitionInsight text={note.content} historyTexts={historyTexts} />
 
         {/* 底部信息行 */}
         <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
