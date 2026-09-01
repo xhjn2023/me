@@ -11,7 +11,8 @@ const ACTION_LABELS = {
   makeup_checkin: '补打卡',
   quantity_update: '余量修改',
   bottle_change: '瓶号修改',
-  bottle_switch: '换新瓶',
+  bottle_switch: '切换打卡瓶',
+  bottle_open: '开新瓶',
   settings_update: '设置更新'
 }
 
@@ -84,12 +85,18 @@ export default function Medicine() {
     showToast(`已补打卡 ${date}`, 'success')
   }
 
-  async function doSwitchBottle() {
+  async function doOpenNewBottle() {
     if (!state) return
-    const prevBottle = state.bottleNumber
-    await medicine.switchToNextBottle()
+    await medicine.openNewBottle()
     await refreshAll()
-    showToast(`已开启第${prevBottle + 1}瓶`, 'success')
+    showToast(`已开启第${Math.max(...bottles.map(b => b.bottleNumber)) + 1}瓶`, 'success')
+  }
+
+  async function doSwitchActiveBottle(bottleNumber) {
+    const res = await medicine.switchActiveBottle(bottleNumber)
+    if (!res.ok) { showToast(res.reason, 'error'); return }
+    await refreshAll()
+    showToast(`已切换到第${bottleNumber}瓶打卡`, 'success')
   }
 
   // 派生值
@@ -111,6 +118,9 @@ export default function Medicine() {
   }, [state, checkedToday])
 
   const low = useMemo(() => medicine.isLowSupply(state), [state])
+  // 进行中的瓶子（未吃完），可切换作为当前打卡瓶
+  const activeBottles = useMemo(() => bottles.filter(b => !b.finishedAt), [bottles])
+  const hasMultipleActive = activeBottles.length > 1
   const progress = state && state.pillsPerBottle > 0
     ? Math.min(100, Math.round((state.remainingPills / state.pillsPerBottle) * 100))
     : 0
@@ -207,6 +217,7 @@ export default function Medicine() {
           <div className="flex-1 min-w-0">
             <p className="text-sm text-slate-500">
               {checkedToday ? '今日已服药' : '今日还未服药'}
+              {!checkedToday && <span className="text-rose-400"> · 用第 {state.bottleNumber} 瓶</span>}
             </p>
             <p className="text-lg font-bold text-slate-800 mt-0.5">
               连续 {streak} 天
@@ -220,7 +231,7 @@ export default function Medicine() {
       <div className="px-4 mt-4">
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-slate-500">当前药瓶</span>
+            <span className="text-sm text-slate-500">当前打卡瓶</span>
             <Button
               variant="ghost"
               size="sm"
@@ -247,6 +258,28 @@ export default function Medicine() {
           {/* 余量进度条 */}
           <ProgressBar value={progress} color="rose" showLabel />
 
+          {/* 进行中的瓶子：可切换作为当前打卡瓶 */}
+          {activeBottles.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs text-slate-400 mb-2">进行中的药瓶（点击切换打卡瓶）</p>
+              <div className="flex flex-wrap gap-2">
+                {activeBottles.map(b => (
+                  <button
+                    key={b.bottleNumber}
+                    onClick={() => b.bottleNumber !== state.bottleNumber && doSwitchActiveBottle(b.bottleNumber)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all btn-press ${
+                      b.bottleNumber === state.bottleNumber
+                        ? 'bg-rose-500 text-white shadow-sm shadow-rose-500/30'
+                        : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-rose-300'
+                    }`}
+                  >
+                    第 {b.bottleNumber} 瓶 · 剩 {b.remainingPills} 颗
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 操作按钮 */}
           <div className="flex gap-2 mt-4">
             <Button
@@ -263,11 +296,16 @@ export default function Medicine() {
               size="md"
               className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 shadow-rose-500/20"
               onClick={() => setConfirmSwitch(true)}
-              icon="refreshCw"
+              icon="package"
             >
-              换新瓶
+              开新瓶
             </Button>
           </div>
+          {hasMultipleActive && (
+            <p className="text-xs text-amber-500 mt-2">
+              存在多瓶未吃完，打卡前请确认当前使用的是正确药瓶
+            </p>
+          )}
         </Card>
       </div>
 
@@ -302,7 +340,7 @@ export default function Medicine() {
               </>
             )}
             {tab === 'bottles' && (
-              <BottleHistory bottles={bottles} currentNo={state.bottleNumber} />
+              <BottleHistory bottles={bottles} currentNo={state.bottleNumber} onSwitch={doSwitchActiveBottle} />
             )}
             {tab === 'logs' && <LogsView logs={logs} />}
           </div>
@@ -339,14 +377,14 @@ export default function Medicine() {
         }}
       />
 
-      {/* 换新瓶确认 */}
+      {/* 开新瓶确认 */}
       <ConfirmDialog
         open={confirmSwitch}
         onClose={() => setConfirmSwitch(false)}
-        onConfirm={doSwitchBottle}
-        title="换新瓶"
-        message={`确认第 ${state.bottleNumber} 瓶已吃完，开启下一瓶？`}
-        confirmText="确认换瓶"
+        onConfirm={doOpenNewBottle}
+        title="开新瓶"
+        message={`确认开启第 ${Math.max(0, ...bottles.map(b => b.bottleNumber)) + 1} 瓶？当前第 ${state.bottleNumber} 瓶还有 ${state.remainingPills} 颗未吃完，开新瓶后仍可切换回旧瓶继续打卡。`}
+        confirmText="确认开瓶"
         danger={false}
       />
 
@@ -461,6 +499,7 @@ function CheckinHistory({ dates, checkins }) {
     <div className="space-y-2">
       {dates.map(date => {
         const isMakeup = checkins[date]?.is_makeup
+        const bottleNo = checkins[date]?.bottleNumber
         return (
           <div
             key={date}
@@ -471,6 +510,9 @@ function CheckinHistory({ dates, checkins }) {
                 <Icon name="check" size={14} />
               </span>
               <span className="text-sm text-slate-700">{date}</span>
+              {bottleNo != null && (
+                <span className="text-xs text-rose-400">第{bottleNo}瓶</span>
+              )}
             </div>
             <span className={`text-xs ${isMakeup ? 'text-amber-500 font-medium' : 'text-slate-400'}`}>
               {isMakeup ? '补打卡' : '已打卡'}
@@ -483,13 +525,13 @@ function CheckinHistory({ dates, checkins }) {
 }
 
 // ─── 瓶次历史 ───
-function BottleHistory({ bottles, currentNo }) {
+function BottleHistory({ bottles, currentNo, onSwitch }) {
   if (bottles.length === 0) {
     return (
       <EmptyState
         icon="package"
         title="暂无瓶次记录"
-        description="换新瓶后将自动记录"
+        description="开新瓶后将自动记录"
       />
     )
   }
@@ -497,6 +539,7 @@ function BottleHistory({ bottles, currentNo }) {
     <div className="space-y-2">
       {bottles.map(b => {
         const isCurrent = b.bottleNumber === currentNo && !b.finishedAt
+        const finished = Boolean(b.finishedAt)
         return (
           <div
             key={b.bottleNumber}
@@ -511,7 +554,12 @@ function BottleHistory({ bottles, currentNo }) {
                   第 {b.bottleNumber} 瓶
                   {isCurrent && (
                     <span className="px-1.5 py-0.5 bg-rose-100 text-rose-500 rounded text-xs font-medium">
-                      当前
+                      当前打卡
+                    </span>
+                  )}
+                  {finished && !isCurrent && (
+                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-xs font-medium">
+                      已吃完
                     </span>
                   )}
                 </p>
@@ -520,7 +568,21 @@ function BottleHistory({ bottles, currentNo }) {
                 </p>
               </div>
             </div>
-            <span className="text-xs text-slate-400 flex-shrink-0">{b.totalPills}颗</span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-xs text-slate-400">
+                {finished ? `${b.totalPills}颗` : `剩 ${b.remainingPills} 颗`}
+              </span>
+              {!isCurrent && !finished && onSwitch && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-rose-500 hover:bg-rose-50"
+                  onClick={() => onSwitch(b.bottleNumber)}
+                >
+                  设为当前
+                </Button>
+              )}
+            </div>
           </div>
         )
       })}

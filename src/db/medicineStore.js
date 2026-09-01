@@ -162,12 +162,12 @@ async function finishBottleRecord(bottleNumber) {
 // ─── 业务操作 ───
 
 /**
- * 通用打卡：今日打卡与补打卡共用同一套逻辑。
+ * 通用打卡：今日打卡、补打卡、指定瓶打卡共用同一套逻辑。
  * - 不允许对未来日期打卡
  * - 同一日期不可重复打卡（medicine_checkins 以 user_id+date 唯一约束）
- * - 完全复用原有流程：扣减当日剂量、写入打卡日、记录日志
+ * - 从目标瓶（默认当前打卡瓶）扣减当日剂量，并同步瓶记录余量
  */
-async function performCheckin(date, { makeup = false } = {}) {
+async function performCheckin(date, { makeup = false, bottleNumber } = {}) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { ok: false, reason: '日期格式不正确' }
   }
@@ -180,42 +180,62 @@ async function performCheckin(date, { makeup = false } = {}) {
     return { ok: false, reason: makeup ? '该日期已打卡' : '今日已打卡' }
   }
   const state = await getState()
-  const newRemaining = Math.max(0, state.remainingPills - state.dailyDose)
-  await medicineCheckinsApi.add(date, state.dailyDose, makeup)
-  const next = await saveState({ remainingPills: newRemaining })
-  const note = `第${state.bottleNumber}瓶打卡，剩余${newRemaining}颗`
+  const targetNo = bottleNumber ?? state.bottleNumber
+  const bottles = await getBottles()
+  const target = bottles.find(b => b.bottleNumber === targetNo)
+  if (!target) return { ok: false, reason: '找不到该药瓶' }
+  if (target.finishedAt) return { ok: false, reason: '该药瓶已吃完，无法打卡' }
+
+  const newRemaining = Math.max(0, target.remainingPills - state.dailyDose)
+  await medicineCheckinsApi.add(date, state.dailyDose, makeup, targetNo)
+  await medicineBottlesApi.updateRemaining(targetNo, newRemaining)
+  let next = null
+  if (targetNo === state.bottleNumber) {
+    next = await saveState({ remainingPills: newRemaining })
+  }
+  const note = `第${targetNo}瓶打卡，剩余${newRemaining}颗`
   await pushLog(makeup ? 'makeup_checkin' : 'checkin', makeup ? `补打卡 ${date}，${note}` : note)
-  return { ok: true, state: next, date }
+  return { ok: true, state: next || state, date }
 }
 
-/** 今日打卡（复用通用打卡流程） */
+/** 今日打卡（对当前打卡瓶打卡） */
 export async function checkinToday() {
   return performCheckin(todayStr())
 }
 
-/** 补打卡：为过去某天补记一次打卡，与今日打卡共用扣量 / 写日志逻辑 */
+/** 补打卡：为过去某天补记一次打卡，默认扣当前打卡瓶余量 */
 export async function makeupCheckin(date) {
   return performCheckin(date, { makeup: true })
 }
 
-/** 取消今日打卡：恢复剂量、移除打卡日 */
+/** 取消今日打卡：恢复剂量到该打卡记录所属药瓶 */
 export async function uncheckinToday() {
   const today = todayStr()
   const checkins = await getCheckins()
-  if (!checkins[today]) return { ok: false, reason: '今日未打卡' }
+  const rec = checkins[today]
+  if (!rec) return { ok: false, reason: '今日未打卡' }
   const state = await getState()
-  const restored = state.remainingPills + (checkins[today]?.dose || state.dailyDose)
+  const dose = rec.dose || state.dailyDose
+  const targetNo = rec.bottleNumber ?? state.bottleNumber
+  const bottles = await getBottles()
+  const target = bottles.find(b => b.bottleNumber === targetNo)
+  const restored = (target?.remainingPills ?? state.remainingPills) + dose
   await medicineCheckinsApi.remove(today)
-  const next = await saveState({ remainingPills: Math.min(9999, restored) })
-  await pushLog('uncheckin', '取消今日打卡')
-  return { ok: true, state: next }
+  await medicineBottlesApi.updateRemaining(targetNo, Math.min(9999, restored))
+  let next = null
+  if (targetNo === state.bottleNumber) {
+    next = await saveState({ remainingPills: Math.min(9999, restored) })
+  }
+  await pushLog('uncheckin', `取消今日打卡（第${targetNo}瓶）`)
+  return { ok: true, state: next || state }
 }
 
-/** 修改药瓶余量（非负校验） */
+/** 修改药瓶余量（非负校验），同步当前打卡瓶记录 */
 export async function setRemainingPills(count) {
   const n = clampInt(count, 0, 9999, 0)
   const next = await saveState({ remainingPills: n })
-  await pushLog('quantity_update', `余量修改为${n}颗`)
+  await medicineBottlesApi.updateRemaining(next.bottleNumber, n)
+  await pushLog('quantity_update', `第${next.bottleNumber}瓶余量修改为${n}颗`)
   return next
 }
 
@@ -227,18 +247,49 @@ export async function setBottleNumber(num) {
   return next
 }
 
-/** 切换新瓶：完成当前瓶记录、瓶号+1、余量重置为单瓶标准 */
-export async function switchToNextBottle() {
+/**
+ * 开新瓶：不强制吃完旧瓶即可开设新瓶，新瓶设为当前打卡瓶。
+ * - 旧瓶若余量为 0（已吃完）将其标记完成
+ * - 旧瓶若仍有余量则保留为进行中，可在打卡时切换回来
+ * - 新瓶余量 = 单瓶标准颗数
+ */
+export async function openNewBottle() {
   const state = await getState()
-  await finishBottleRecord(state.bottleNumber)
-  const nextNo = state.bottleNumber + 1
-  const next = await saveState({
-    bottleNumber: nextNo,
+  const bottles = await getBottles()
+  // 先把当前瓶余量写回记录，确保后续计算一致
+  await medicineBottlesApi.updateRemaining(state.bottleNumber, state.remainingPills)
+  const oldBottle = bottles.find(b => b.bottleNumber === state.bottleNumber)
+  const oldFinished = (oldBottle?.remainingPills ?? state.remainingPills) <= 0
+  if (oldFinished && oldBottle && !oldBottle.finishedAt) {
+    await finishBottleRecord(state.bottleNumber)
+  }
+  const newNo = Math.max(0, ...bottles.map(b => b.bottleNumber)) + 1
+  await medicineBottlesApi.add({
+    bottleNumber: newNo,
+    startedAt: todayStr(),
+    finishedAt: null,
+    totalPills: state.pillsPerBottle,
     remainingPills: state.pillsPerBottle
   })
-  await startBottleRecord(nextNo, state.pillsPerBottle)
-  await pushLog('bottle_switch', `第${state.bottleNumber}瓶完成，开启第${nextNo}瓶`)
+  const next = await saveState({ bottleNumber: newNo, remainingPills: state.pillsPerBottle })
+  await pushLog('bottle_open', oldFinished
+    ? `第${state.bottleNumber}瓶吃完，开启第${newNo}瓶`
+    : `第${state.bottleNumber}瓶剩余${oldBottle?.remainingPills ?? state.remainingPills}颗，开启第${newNo}瓶`)
   return next
+}
+
+/** 切换当前打卡瓶：把当前瓶余量写回记录，再切到目标瓶（仅允许进行中的瓶） */
+export async function switchActiveBottle(bottleNumber) {
+  const n = clampInt(bottleNumber, 1, 9999, 1)
+  const state = await getState()
+  const bottles = await getBottles()
+  const target = bottles.find(b => b.bottleNumber === n)
+  if (!target) return { ok: false, reason: '找不到该药瓶' }
+  if (target.finishedAt) return { ok: false, reason: '该药瓶已吃完，不可切换打卡' }
+  await medicineBottlesApi.updateRemaining(state.bottleNumber, state.remainingPills)
+  const next = await saveState({ bottleNumber: n, remainingPills: target.remainingPills })
+  await pushLog('bottle_switch', `切换打卡至第${n}瓶（剩余${target.remainingPills}颗）`)
+  return { ok: true, state: next }
 }
 
 /** 更新设置（含字段校验） */

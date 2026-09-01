@@ -458,13 +458,13 @@ export const medicineCheckinsApi = {
     const { data, error } = await supabase.from('medicine_checkins').select('*').eq('user_id', userId)
     if (error) throw error
     const map = {}
-    for (const row of data || []) map[row.date] = { dose: row.dose, is_makeup: row.is_makeup || false }
+    for (const row of data || []) map[row.date] = { dose: row.dose, is_makeup: row.is_makeup || false, bottleNumber: row.bottle_number ?? null }
     return map
   },
-  async add(date, dose, isMakeup = false) {
+  async add(date, dose, isMakeup = false, bottleNumber = null) {
     const userId = await uid()
     const { error } = await supabase.from('medicine_checkins').upsert(
-      { date, dose, user_id: userId, is_makeup: isMakeup },
+      { date, dose, user_id: userId, is_makeup: isMakeup, bottle_number: bottleNumber },
       { onConflict: 'user_id,date' }
     )
     if (error) throw error
@@ -486,7 +486,8 @@ export const medicineBottlesApi = {
       bottleNumber: b.bottle_number,
       startedAt: b.started_at,
       finishedAt: b.finished_at,
-      totalPills: b.total_pills
+      totalPills: b.total_pills,
+      remainingPills: b.remaining_pills ?? b.total_pills
     }))
   },
   async add(bottle) {
@@ -496,8 +497,18 @@ export const medicineBottlesApi = {
       started_at: bottle.startedAt,
       finished_at: bottle.finishedAt,
       total_pills: bottle.totalPills,
+      remaining_pills: bottle.remainingPills ?? bottle.totalPills,
       user_id: userId
     })
+    if (error) throw error
+  },
+  async updateRemaining(bottleNumber, remaining) {
+    const userId = await uid()
+    const { error } = await supabase
+      .from('medicine_bottles')
+      .update({ remaining_pills: remaining })
+      .eq('bottle_number', bottleNumber)
+      .eq('user_id', userId)
     if (error) throw error
   },
   async finish(bottleNumber) {
