@@ -107,10 +107,12 @@ export default function CognitionTab() {
     if (!text || !currentEntryId) return
     setAnalyzing(true)
     try {
-      // 更新条目
-      await cognitionEntriesApi.update(currentEntryId, { content: text, category, mood })
+      // 先同步分析（纯函数），再并行写入条目+反馈，2 次 RTT → 1 次
       const result = analyzeReflection(text, { mood, category })
-      await cognitionFeedbacksApi.upsert(currentEntryId, result)
+      await Promise.all([
+        cognitionEntriesApi.update(currentEntryId, { content: text, category, mood }),
+        cognitionFeedbacksApi.upsert(currentEntryId, result)
+      ])
       setCurrentFeedback(result)
       refresh()
       showToast('已重新分析', 'success')

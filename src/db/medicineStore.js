@@ -187,14 +187,17 @@ async function performCheckin(date, { makeup = false, bottleNumber } = {}) {
   if (target.finishedAt) return { ok: false, reason: '该药瓶已吃完，无法打卡' }
 
   const newRemaining = Math.max(0, target.remainingPills - state.dailyDose)
-  await medicineCheckinsApi.add(date, state.dailyDose, makeup, targetNo)
-  await medicineBottlesApi.updateRemaining(targetNo, newRemaining)
+  const note = `第${targetNo}瓶打卡，剩余${newRemaining}颗`
+  // 三个独立写并行（checkin + 瓶余量 + 日志），3 次 RTT → 1 次
+  await Promise.all([
+    medicineCheckinsApi.add(date, state.dailyDose, makeup, targetNo),
+    medicineBottlesApi.updateRemaining(targetNo, newRemaining),
+    pushLog(makeup ? 'makeup_checkin' : 'checkin', makeup ? `补打卡 ${date}，${note}` : note)
+  ])
   let next = null
   if (targetNo === state.bottleNumber) {
     next = await saveState({ remainingPills: newRemaining })
   }
-  const note = `第${targetNo}瓶打卡，剩余${newRemaining}颗`
-  await pushLog(makeup ? 'makeup_checkin' : 'checkin', makeup ? `补打卡 ${date}，${note}` : note)
   return { ok: true, state: next || state, date }
 }
 
@@ -220,13 +223,16 @@ export async function uncheckinToday() {
   const bottles = await getBottles()
   const target = bottles.find(b => b.bottleNumber === targetNo)
   const restored = (target?.remainingPills ?? state.remainingPills) + dose
-  await medicineCheckinsApi.remove(today)
-  await medicineBottlesApi.updateRemaining(targetNo, Math.min(9999, restored))
+  // 三个独立写并行（删除打卡 + 恢复瓶余量 + 日志）
+  await Promise.all([
+    medicineCheckinsApi.remove(today),
+    medicineBottlesApi.updateRemaining(targetNo, Math.min(9999, restored)),
+    pushLog('uncheckin', `取消今日打卡（第${targetNo}瓶）`)
+  ])
   let next = null
   if (targetNo === state.bottleNumber) {
     next = await saveState({ remainingPills: Math.min(9999, restored) })
   }
-  await pushLog('uncheckin', `取消今日打卡（第${targetNo}瓶）`)
   return { ok: true, state: next || state }
 }
 
@@ -286,9 +292,12 @@ export async function switchActiveBottle(bottleNumber) {
   const target = bottles.find(b => b.bottleNumber === n)
   if (!target) return { ok: false, reason: '找不到该药瓶' }
   if (target.finishedAt) return { ok: false, reason: '该药瓶已吃完，不可切换打卡' }
-  await medicineBottlesApi.updateRemaining(state.bottleNumber, state.remainingPills)
   const next = await saveState({ bottleNumber: n, remainingPills: target.remainingPills })
-  await pushLog('bottle_switch', `切换打卡至第${n}瓶（剩余${target.remainingPills}颗）`)
+  // 旧瓶余量回写 + 日志并行
+  await Promise.all([
+    medicineBottlesApi.updateRemaining(state.bottleNumber, state.remainingPills),
+    pushLog('bottle_switch', `切换打卡至第${n}瓶（剩余${target.remainingPills}颗）`)
+  ])
   return { ok: true, state: next }
 }
 
