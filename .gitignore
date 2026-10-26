@@ -6,3 +6,8 @@ dist/
 .vite/
 .workbuddy/
 vite.config.js.timestamp-*.mjs
+
+# 与工作台 PWA 无关的独立产物 / 办公文档，不入库
+trust-query-h5/
+*.docx
+*.pptx

@@ -2,7 +2,15 @@
 
 > 个人移动工作台 PWA · 每天都能用的效率工具  
 > 技术栈：React 18 + Vite 5 + TailwindCSS + Supabase  
-> 文档生成日期：2026-08-16
+> 文档生成日期：2026-08-16 · **最近更新：2026-10-26**
+
+**2026-10-26 更新摘要**
+- 生活模块重构：日记·笔记 → 每日记录 / 每周复盘 / 随笔 / **认知重塑**（4 个子 Tab）
+- 新增 `src/utils/cognitionEngine.js` 认知扭曲检测引擎（Burns 15 项 + Sanctum TR 7 栏 + 去灾难化）
+- 用药模块支持**多瓶并行**打卡（`medicine_state.bottles` 数组）与「开新瓶」
+- 新增 `daily_records` / `weekly_reviews` / `cognition_entries` / `cognition_feedbacks` 四张表
+- 补齐 `20261026000000_cognition_tables.sql` 迁移（此前两张认知表未纳入版本管理）
+- 数据层 API 模块数 13 → 17
 
 ---
 
@@ -51,7 +59,7 @@
 **项目名称**：`me-workbench`（我的工作台）  
 **项目类型**：单页应用 (SPA) + PWA  
 **设计风格**：淡紫/蓝紫 Gemini 风格，毛玻璃效果，大圆角，柔和阴影  
-**主要功能**：任务管理、学习课程、英语单词（FSRS 间隔重复）、日记笔记、用药提醒、副业追踪、每日复盘
+**主要功能**：任务管理、学习课程、英语单词（FSRS 间隔重复）、生活记录与认知重塑、用药提醒（多瓶并存）、副业追踪、每日复盘
 
 ### 功能模块速览
 
@@ -61,8 +69,8 @@
 | 工作 | `work` | 任务看板（CRUD/筛选/排序/状态流转）、工作小结 |
 | 学习 | `study` | 课程管理、推荐书籍、学习时间统计、每日格言 |
 | 英语 | `english` | FSRS 间隔重复单词学习、六级/考研词库 |
-| 生活 | `life` | 日记·笔记（CRUD/置顶/收藏/标签/海报/搜索/日历） |
-| 用药 | `medicine` | 每日打卡、药瓶管理、余量追踪、低量提醒、操作日志 |
+| 生活 | `life` | 4 子 Tab：每日记录 / 每周复盘 / 随笔 / 认知重塑 |
+| 用药 | `medicine` | 每日打卡、多瓶并行、余量追踪、低量提醒、操作日志 |
 | 副业 | `side` | 副业项目进度追踪 |
 | 复盘 | `review` | 每日情绪 + 四维评分（体能/心力/脑力/情绪） |
 
@@ -90,8 +98,13 @@
 │  │  │  Data Layer (db/)                            │  │  │
 │  │  │  database.js (Supabase Client + API 模块)     │  │  │
 │  │  │  auth.js (认证)                              │  │  │
-│  │  │  medicineStore.js / englishStore.js (业务)    │  │  │
+│  │  │  medicineStore.js / englishStore.js /      │  │  │
+│  │  │  lifeStore.js (业务纯函数)                    │  │  │
 │  │  │  seed.js (种子数据)                           │  │  │
+│  │  └──────────────────────────┬──────────────────┘  │  │
+│  │  ┌──────────────────────────┴──────────────────┐  │  │
+│  │  │  Utils (纯函数)                              │  │  │
+│  │  │  cognitionEngine.js (认知扭曲检测)            │  │  │
 │  │  └──────────────────────────┬──────────────────┘  │  │
 │  │  ┌──────────────────────────┴──────────────────┐  │  │
 │  │  │  Hooks (useAsyncData)                        │  │  │
@@ -144,11 +157,15 @@ me-workbench/
 │   ├── index.css                 # 全局样式 + Tailwind 指令
 │   │
 │   ├── db/                       # 数据层
-│   │   ├── database.js           # Supabase 客户端 + 13 个 API 模块
+│   │   ├── database.js           # Supabase 客户端 + 17 个 API 模块
 │   │   ├── auth.js               # 认证模块（登录/注册/登出/会话）
-│   │   ├── medicineStore.js      # 用药业务逻辑
+│   │   ├── medicineStore.js      # 用药业务逻辑（多瓶并行）
 │   │   ├── englishStore.js       # 英语 FSRS 调度（纯函数）
+│   │   ├── lifeStore.js          # 生活模块业务逻辑（纯函数，可单测）
 │   │   └── seed.js               # 种子数据初始化
+│   │
+│   ├── utils/                    # 纯函数工具
+│   │   └── cognitionEngine.js    # 认知扭曲检测引擎（648 行，纯函数）
 │   │
 │   ├── hooks/                    # 自定义 Hooks
 │   │   └── useAsyncData.js       # 通用异步数据获取 Hook
@@ -166,13 +183,20 @@ me-workbench/
 │       ├── Work.jsx              # 工作页
 │       ├── Study.jsx             # 学习页
 │       ├── English.jsx           # 英语学习页
-│       ├── Life.jsx              # 生活页（日记·笔记）
+│       ├── Life.jsx              # 生活页（4 子 Tab 容器，63 行）
 │       ├── Medicine.jsx          # 用药提醒页
 │       ├── SideWork.jsx          # 副业页
 │       ├── Review.jsx            # 复盘页
 │       ├── Login.jsx             # 登录/注册页
 │       ├── healingQuotes.js      # 治愈短句数据
-│       ├── life/                 # 生活子组件
+│       ├── life/                 # 生活子组件（4 个 Tab + 共用编辑器）
+│       │   ├── DailyTab.jsx      # 每日记录（完成事项/投入时长/情绪/精力/支出/明日任务）
+│       │   ├── DailyEditor.jsx   # 每日记录编辑表单
+│       │   ├── WeeklyTab.jsx     # 每周复盘（亮点/问题模式/改进）
+│       │   ├── NotesTab.jsx      # 随笔列表
+│       │   ├── CognitionTab.jsx  # 认知重塑（输入 → 引擎分析 → 反馈落库）
+│       │   ├── FeedbackCard.jsx  # 认知反馈展示卡（扭曲/证据/视角/重构/追问）
+│       │   ├── CognitionInsight.jsx # 认知历史统计（高频偏差/分数趋势）
 │       │   ├── NoteCard.jsx      # 笔记卡片
 │       │   ├── NoteEditor.jsx    # 笔记编辑器
 │       │   ├── NoteCalendar.jsx  # 笔记日历
@@ -187,10 +211,12 @@ me-workbench/
 │
 ├── supabase/                     # 数据库迁移
 │   └── migrations/
-│       ├── 20260728000000_init.sql           # 初始表（7 张）
+│       ├── 20260728000000_init.sql            # 初始表（7 张）
 │       ├── 20260728000001_medicine_tables.sql # 用药表（4 张）
 │       ├── 20260801000001_work_enhance.sql    # 工作增强 + work_summaries
-│       └── 20260816000000_english_tables.sql  # 英语卡片表
+│       ├── 20260816000000_english_tables.sql  # 英语卡片表
+│       ├── 20260816000001_life_module_tables.sql # daily_records + weekly_reviews
+│       └── 20261026000000_cognition_tables.sql   # 认知重塑两表（补录）
 │
 ├── server/                       # Express 后端（备选）
 │   └── index.js                  # REST API 服务（端口 3001）
@@ -199,12 +225,16 @@ me-workbench/
 │   ├── check-deploy.mjs
 │   ├── gen-icons.mjs
 │   ├── migrate-medicine.mjs
+│   ├── perf_test.mjs / .py
 │   └── seed-supabase.mjs
 │
-└── tests/                        # 测试
+└── tests/                        # 测试（node --test）
     ├── englishStore.test.mjs     # 英语模块单元测试
+    ├── lifeStore.test.mjs        # 生活模块单元测试
     └── stress-test.mjs           # 数据库压力测试
 ```
+
+> **未纳入版本管理**：`trust-query-h5/`（独立 H5 单页，与 PWA 无关）、`招行云信托流程.docx`、`deck.pptx`、`trae-work-教学.pptx` 均为独立产物。
 
 ---
 
@@ -212,7 +242,7 @@ me-workbench/
 
 ### 4.1 入口与路由 (App.jsx)
 
-**文件**：[src/App.jsx](file:///f:/Users/workbuddy/gongzuotai/src/App.jsx)
+**文件**：[src/App.jsx](file:///F:/14143/trae%20work/gongzuotai/src/App.jsx)
 
 **职责**：应用根组件，负责认证状态管理、Tab 导航和页面路由。
 
@@ -250,7 +280,7 @@ me-workbench/
 
 ### 4.2 首页仪表盘 (Dashboard)
 
-**文件**：[src/pages/Dashboard.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/Dashboard.jsx)
+**文件**：[src/pages/Dashboard.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/Dashboard.jsx)
 
 **职责**：展示今日概览、模块快捷入口、治愈短句和今日任务预览。
 
@@ -275,11 +305,11 @@ studyRecordsApi.getByDates(weekDates) → 累计学习分钟 → studyTime (小�
 
 ### 4.3 工作模块 (Work)
 
-**文件**：[src/pages/Work.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/Work.jsx)
+**文件**：[src/pages/Work.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/Work.jsx)
 
 **子组件**：
-- [TaskBoard.jsx](file:///f:/Users/workbuddy/gongzuotai/src/components/work/TaskBoard.jsx) — 任务看板
-- [WorkSummary.jsx](file:///f:/Users/workbuddy/gongzuotai/src/components/work/WorkSummary.jsx) — 工作小结
+- [TaskBoard.jsx](file:///F:/14143/trae%20work/gongzuotai/src/components/work/TaskBoard.jsx) — 任务看板
+- [WorkSummary.jsx](file:///F:/14143/trae%20work/gongzuotai/src/components/work/WorkSummary.jsx) — 工作小结
 
 **两个 Tab**：任务列表 / 工作小结
 
@@ -322,7 +352,7 @@ CRUD 操作 → tasksApi.add/update/delete → refresh() → 触发 'app-data-ch
 
 ### 4.4 学习模块 (Study)
 
-**文件**：[src/pages/Study.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/Study.jsx)
+**文件**：[src/pages/Study.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/Study.jsx)
 
 **分类**：全部 / 人事专业 / 超市经营 / 内心能量 / 人生智慧 / 摄影
 
@@ -345,9 +375,9 @@ CRUD 操作 → tasksApi.add/update/delete → refresh() → 触发 'app-data-ch
 
 ### 4.5 英语模块 (English)
 
-**文件**：[src/pages/English.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/English.jsx)
+**文件**：[src/pages/English.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/English.jsx)
 
-**业务层**：[src/db/englishStore.js](file:///f:/Users/workbuddy/gongzuotai/src/db/englishStore.js)
+**业务层**：[src/db/englishStore.js](file:///F:/14143/trae%20work/gongzuotai/src/db/englishStore.js)
 
 **核心功能**：基于 FSRS (Free Spaced Repetition Scheduler) 的间隔重复单词学习系统。
 
@@ -381,46 +411,98 @@ CRUD 操作 → tasksApi.add/update/delete → refresh() → 触发 'app-data-ch
 
 ### 4.6 生活模块 (Life)
 
-**文件**：[src/pages/Life.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/Life.jsx)
+**容器**：[src/pages/Life.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/Life.jsx) — 仅 63 行，只负责 4 个子 Tab 切换与懒挂载
+**业务层**：[src/db/lifeStore.js](file:///F:/14143/trae%20work/gongzuotai/src/db/lifeStore.js) — 纯函数，不依赖 Supabase，可单测
+**分析引擎**：[src/utils/cognitionEngine.js](file:///F:/14143/trae%20work/gongzuotai/src/utils/cognitionEngine.js)
 
-**子组件**：
-- [NoteCard.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/life/NoteCard.jsx) — 笔记卡片（含置顶/收藏/标签/心情展示）
-- [NoteEditor.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/life/NoteEditor.jsx) — 笔记编辑器
-- [NoteCalendar.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/life/NoteCalendar.jsx) — 日历视图
-- [NoteSearch.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/life/NoteSearch.jsx) — 全局搜索
-- [NotePoster.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/life/NotePoster.jsx) — 海报生成（html-to-image）
+生活模块在 2026-09 前后做过一次重构：原先的「日记·笔记」被拆成四个职责清晰的子 Tab。
 
-**核心功能**：
-- 按日期查看笔记
-- 快速输入（短文本）或完整编辑
-- 笔记属性：心情、标签、图片、置顶、收藏、归档
-- 日期前后切换（不允许超过今天）
-- 搜索：关键字 / 标签 / 心情 / 仅收藏
-- 海报生成（html-to-image 截图）
+| 子 Tab | 组件 | 数据表 | 说明 |
+|--------|------|--------|------|
+| 每日记录 | `DailyTab.jsx` + `DailyEditor.jsx` | `daily_records` | 每用户每天一条，`(user_id, date)` 唯一 |
+| 每周复盘 | `WeeklyTab.jsx` | `weekly_reviews` | 每用户每周一条，`week_start` 为周一日期 |
+| 随笔 | `NotesTab.jsx` + `Note*.jsx` | `life_records` | 原笔记功能完整保留 |
+| 认知重塑 | `CognitionTab.jsx` + `FeedbackCard.jsx` + `CognitionInsight.jsx` | `cognition_entries` / `cognition_feedbacks` | 本地规则引擎分析，无需 LLM |
 
-**心情选项**（`constants.js`）：
+#### 每日记录
+
+字段：完成事项（`done_items` 多行文本）、有效投入时长（`focus_hours` 小数小时）、情绪（`mood`，5 档）、精力（`energy` 1-5）、支出明细（`expenses` JSONB 数组 `[{desc, amount, category}]`）、明日最重要的一件事（`tomorrow_task`）。
+
+情绪档位（`lifeStore.MOODS`）：
+
 | key | 标签 | 表情 |
 |-----|------|------|
-| happy | 开心 | 😊 |
-| calm | 平淡 | 😌 |
-| tired | 疲惫 | 😴 |
-| healed | 治愈 | 🌿 |
-| sad | 难过 | 🥲 |
-| busy | 忙碌 | 😅 |
+| great | 很棒 | 😄 |
+| good | 不错 | 🙂 |
+| ok | 一般 | 😐 |
+| low | 低落 | 😔 |
+| bad | 很差 | 😞 |
 
-**预设标签**：出行、美食、感悟、居家、朋友、家人、工作、梦境
+精力档位（1-5）：疲惫 / 较低 / 一般 / 充沛 / 满格。
+
+#### 每周复盘
+
+三个纯文本核心字段：`highlights`（本周亮点）、`problems`（反复出现的问题与模式）、`improvement`（下周计划改进的一件小事）。按 `week_start`（周一日期）upsert。
+
+#### 随笔（原笔记系统）
+
+- 按日期查看、快速输入或完整编辑
+- 属性：心情、标签、图片、置顶、收藏、归档
+- 搜索：关键字 / 标签 / 心情 / 仅收藏
+- 海报生成（`html-to-image` 截图）
+- 心情选项来自 `life/constants.js`（happy/calm/tired/healed/sad/busy 六档，**与每日记录的 5 档 mood 是两套独立定义**，不要混用）
+- 预设标签：出行、美食、感悟、居家、朋友、家人、工作、梦境
+
+#### 认知重塑
+
+这是生活模块里技术含量最高的部分：一个**纯前端、无 LLM 依赖**的认知扭曲检测引擎，输入一段 ≥15 字的心情记录，秒级返回结构化批判性反馈。
+
+**设计原则**（写在 `cognitionEngine.js` 头部注释里，改动前请先读）：
+- 不讨好 — 不使用「你很棒 / 你已经很好了」这类安抚话术
+- 客观 — 基于文本证据推导，不无端共情
+- 有批判性 — 直接指出认知漏洞，不模糊处理
+- 可执行 — 指出问题后给可操作的思考工具
+
+**三个对齐来源**（刻意不重复造轮子）：
+
+| 来源 | 贡献 |
+|------|------|
+| Burns《Feeling Good》(1980) | 15 项权威认知扭曲分类及检测正则 |
+| GitHub CBT App「Sanctum」`thought_record.dart` | Thought Record 7 栏结构 + 苏格拉底 6 问模板 |
+| MoodJam / Quirk（开源） | Decatastrophizing 去灾难化三步法 |
+
+**分析流水线**：`analyzeReflection(text, { mood, category })` → 纯同步函数 → 返回：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `biases` | array | 命中的扭曲 `[{key, name, severity, desc, evidence, source}]` |
+| `evidence` | object | `{ support: [], against: [] }` 支持/反驳证据 |
+| `perspectives` | array | 替代视角列表 |
+| `reframe` | string | 认知重构后的表述 |
+| `challenges` | array | 苏格拉底追问 |
+| `summary` | string | 一句话总评 |
+| `score` | number | 思辨得分，用于历史趋势 |
+| `rawAnalysis` | string | 引擎原始输出 |
+
+典型流程（`CognitionTab.jsx`）：先 `cognitionEntriesApi.add()` 落库拿到 `entryId` → 同步跑引擎 → `cognitionFeedbacksApi.upsert(entryId, result)` 按 `entry_id` 覆盖写入 → 广播 `app-data-changed`。重新生成走 `Promise.all` 并行更新条目与反馈（2 次 RTT 压到 1 次）。
+
+**分类**：general 通用想法 / work 工作困扰 / relationship 人际关系 / self-growth 自我成长 / emotion 情绪波动 / decision 抉择纠结
+**情绪维度**：anxious / sad / angry / confused / ashamed / hurt / fear / calm（比随笔的情绪选项更偏自省场景）
+
+`CognitionInsight.jsx` 读取 `cognitionFeedbacksApi.getAll()`（带 `cognition_entries!inner(date, category)` 关联）做历史统计：高频偏差、分数趋势。
 
 ---
 
 ### 4.7 用药模块 (Medicine)
 
-**文件**：[src/pages/Medicine.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/Medicine.jsx)  
-**业务层**：[src/db/medicineStore.js](file:///f:/Users/workbuddy/gongzuotai/src/db/medicineStore.js)
+**文件**：[src/pages/Medicine.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/Medicine.jsx)  
+**业务层**：[src/db/medicineStore.js](file:///F:/14143/trae%20work/gongzuotai/src/db/medicineStore.js)
 
 **核心功能**：
 - 每日打卡（大圆形按钮，点击标记已服药，再次点击取消）
 - 补打卡（为过去日期补记）
 - 连续打卡天数自动计算
+- **多瓶并存**：不强制吃完旧瓶即可「开新瓶」；旧瓶仍有余量则保留为进行中，可随时「切换打卡瓶」回来（打卡始终记在当前活跃瓶上）
 - 药瓶管理：瓶号、余量、换新瓶
 - 余量追踪 + 进度条
 - 低量提醒（余量 ≤ 阈值时顶部橙色提示）
@@ -432,20 +514,25 @@ CRUD 操作 → tasksApi.add/update/delete → refresh() → 触发 'app-data-ch
 **数据表**（4 张）：
 | 表 | 说明 |
 |----|------|
-| `medicine_state` | 当前药瓶状态，每用户单行 |
+| `medicine_state` | 当前活跃瓶状态，每用户单行 |
 | `medicine_checkins` | 打卡日集合，`(user_id, date)` 唯一 |
-| `medicine_bottles` | 瓶次历史 |
+| `medicine_bottles` | 瓶次历史，每瓶一行（含 `remaining_pills` / `finished_at`） |
 | `medicine_logs` | 操作日志（取最近 200 条） |
+
+> 多瓶模型的关键约定：`medicine_state.bottle_number` 只是「当前在打哪一瓶」的游标，真正的每瓶余量存在 `medicine_bottles.remaining_pills`。切换活跃瓶前必须把当前瓶余量写回 `medicine_bottles`，否则数据会漂移——`openNewBottle()` 和 `switchActiveBottle()` 都遵守这个顺序。
 
 **关键业务函数（medicineStore.js）**：
 | 函数 | 说明 |
 |------|------|
-| `getState()` | 获取当前状态（含默认值 + 字段校验） |
-| `checkinToday()` | 今日打卡（扣减剂量、记录打卡、写日志） |
+| `getState()` | 获取当前状态（含默认值 + `clampInt` 字段范围校验） |
+| `checkinToday()` | 今日打卡（扣减活跃瓶剂量、记录打卡、写日志） |
 | `makeupCheckin(date)` | 补打卡 |
 | `uncheckinToday()` | 取消今日打卡（恢复剂量） |
-| `setRemainingPills(count)` | 修改余量 |
-| `switchToNextBottle()` | 换新瓶（完成当前瓶、瓶号+1、余量重置） |
+| `getBottles()` | 全部瓶次记录（含进行中） |
+| `setRemainingPills(count)` | 修改当前瓶余量 |
+| `openNewBottle()` | 开新瓶：旧瓶余量回写 → 余量为 0 则标记完成 → 新建瓶号 = max+1 → 游标指过去 |
+| `switchActiveBottle(n)` | 切换打卡瓶（拒绝已吃完的瓶） |
+| `setBottleNumber(num)` | 直接指定瓶号 |
 | `updateSettings(patch)` | 更新设置（含字段校验） |
 | `estimateFinishDate(state, checkedToday)` | 预估吃完日期 |
 | `isLowSupply(state)` | 是否低量 |
@@ -456,7 +543,7 @@ CRUD 操作 → tasksApi.add/update/delete → refresh() → 触发 'app-data-ch
 
 ### 4.8 副业模块 (SideWork)
 
-**文件**：[src/pages/SideWork.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/SideWork.jsx)
+**文件**：[src/pages/SideWork.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/SideWork.jsx)
 
 **核心功能**：
 - 副业项目 CRUD
@@ -470,7 +557,7 @@ CRUD 操作 → tasksApi.add/update/delete → refresh() → 触发 'app-data-ch
 
 ### 4.9 复盘模块 (Review)
 
-**文件**：[src/pages/Review.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/Review.jsx)
+**文件**：[src/pages/Review.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/Review.jsx)
 
 **核心功能**：
 - 每日情绪选择：低落 / 平淡 / 不错 / 开心 / 超赞
@@ -489,7 +576,7 @@ CRUD 操作 → tasksApi.add/update/delete → refresh() → 触发 'app-data-ch
 
 ### 4.10 登录模块 (Login)
 
-**文件**：[src/pages/Login.jsx](file:///f:/Users/workbuddy/gongzuotai/src/pages/Login.jsx)
+**文件**：[src/pages/Login.jsx](file:///F:/14143/trae%20work/gongzuotai/src/pages/Login.jsx)
 
 **功能**：
 - 邮箱 + 密码登录/注册
@@ -513,7 +600,7 @@ CRUD 操作 → tasksApi.add/update/delete → refresh() → 触发 'app-data-ch
 
 ### 5.1 Supabase 客户端
 
-**文件**：[src/db/database.js](file:///f:/Users/workbuddy/gongzuotai/src/db/database.js)
+**文件**：[src/db/database.js](file:///F:/14143/trae%20work/gongzuotai/src/db/database.js)
 
 ```js
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -534,7 +621,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 ### 5.2 认证模块
 
-**文件**：[src/db/auth.js](file:///f:/Users/workbuddy/gongzuotai/src/db/auth.js)
+**文件**：[src/db/auth.js](file:///F:/14143/trae%20work/gongzuotai/src/db/auth.js)
 
 基于 Supabase Auth，Session 持久化在 localStorage。支持：
 - 邮箱密码注册/登录
@@ -544,7 +631,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 ### 5.3 API 模块一览
 
-所有 API 模块均在 [src/db/database.js](file:///f:/Users/workbuddy/gongzuotai/src/db/database.js) 中定义，每个操作都携带 `user_id` 进行 RLS 隔离。
+所有 API 模块均在 [src/db/database.js](file:///F:/14143/trae%20work/gongzuotai/src/db/database.js) 中定义，每个操作都携带 `user_id` 进行 RLS 隔离。
 
 | 模块 | 数据表 | 主要方法 |
 |------|--------|---------|
@@ -561,12 +648,18 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 | `medicineBottlesApi` | `medicine_bottles` | `getAll`, `add`, `finish` |
 | `medicineLogsApi` | `medicine_logs` | `getAll`, `add` |
 | `englishCardsApi` | `english_cards` | `getByBook`, `getDue`, `add`, `update`, `delete` |
+| `dailyRecordsApi` | `daily_records` | `getByDate`, `getByRange`, `upsert`, `delete` |
+| `weeklyReviewsApi` | `weekly_reviews` | `getByWeek`, `getAll`, `upsert`, `delete` |
+| `cognitionEntriesApi` | `cognition_entries` | `getAll({limit, category})`, `getById`, `add`, `update`, `delete` |
+| `cognitionFeedbacksApi` | `cognition_feedbacks` | `getByEntryId`, `upsert`（onConflict `entry_id`）, `getAll`（关联 entries） |
+
+共 17 个 API 模块。所有读写都先 `await uid()` 取当前会话用户 ID，再以 `eq('user_id', userId)` 显式过滤——即使 RLS 已兜底，双层过滤仍是本项目约定。
 
 ### 5.4 业务 Store
 
 #### medicineStore.js
 
-**文件**：[src/db/medicineStore.js](file:///f:/Users/workbuddy/gongzuotai/src/db/medicineStore.js)
+**文件**：[src/db/medicineStore.js](file:///F:/14143/trae%20work/gongzuotai/src/db/medicineStore.js)
 
 用药模块的业务逻辑层，依赖 `database.js` 中的 4 个 Medicine API。提供纯函数 + 异步操作：
 
@@ -579,7 +672,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 #### englishStore.js
 
-**文件**：[src/db/englishStore.js](file:///f:/Users/workbuddy/gongzuotai/src/db/englishStore.js)
+**文件**：[src/db/englishStore.js](file:///F:/14143/trae%20work/gongzuotai/src/db/englishStore.js)
 
 英语 FSRS 业务逻辑层，**纯函数设计，不依赖 Supabase**，可独立测试。
 
@@ -587,9 +680,25 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 - 提供卡片创建、评分、调度、序列化等纯函数
 - 数据读写由 `English.jsx` 组合 `englishCardsApi` 完成
 
+#### lifeStore.js
+
+**文件**：[src/db/lifeStore.js](file:///F:/14143/trae%20work/gongzuotai/src/db/lifeStore.js)
+
+生活模块业务层，同样**纯函数设计，不依赖 Supabase**，由 `tests/lifeStore.test.mjs` 覆盖。
+
+- 情绪档位 `MOODS`（great/good/ok/low/bad）、精力档位 `ENERGY_LEVELS`（1-5）
+- 每日记录 / 每周复盘的字段校验与派生计算（支出汇总、连续记录天数等）
+- 数据读写由 `DailyTab` / `WeeklyTab` 组合 `dailyRecordsApi` / `weeklyReviewsApi` 完成
+
+#### cognitionEngine.js（utils 而非 db，但同属业务纯函数层）
+
+**文件**：[src/utils/cognitionEngine.js](file:///F:/14143/trae%20work/gongzuotai/src/utils/cognitionEngine.js)
+
+认知扭曲检测引擎，648 行纯函数，不依赖网络与 Supabase。对外只暴露 `analyzeReflection(text, options)`。详见 [4.6 认知重塑](#46-生活模块-life)。
+
 ### 5.5 种子数据
 
-**文件**：[src/db/seed.js](file:///f:/Users/workbuddy/gongzuotai/src/db/seed.js)
+**文件**：[src/db/seed.js](file:///F:/14143/trae%20work/gongzuotai/src/db/seed.js)
 
 `initializeData()` 函数在用户首次登录后调用，用于初始化示例数据。
 
@@ -611,7 +720,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 #### useAsyncData
 
-**文件**：[src/hooks/useAsyncData.js](file:///f:/Users/workbuddy/gongzuotai/src/hooks/useAsyncData.js)
+**文件**：[src/hooks/useAsyncData.js](file:///F:/14143/trae%20work/gongzuotai/src/hooks/useAsyncData.js)
 
 通用的异步数据获取 Hook，替代 Dexie 的 `useLiveQuery`。
 
@@ -637,8 +746,8 @@ const { data, loading, error, refresh } = useAsyncData(fetcher, deps)
 
 ## 6. UI 组件库
 
-**文件**：[src/components/ui/index.jsx](file:///f:/Users/workbuddy/gongzuotai/src/components/ui/index.jsx)  
-**图标**：[src/components/ui/icons.jsx](file:///f:/Users/workbuddy/gongzuotai/src/components/ui/icons.jsx)
+**文件**：[src/components/ui/index.jsx](file:///F:/14143/trae%20work/gongzuotai/src/components/ui/index.jsx)  
+**图标**：[src/components/ui/icons.jsx](file:///F:/14143/trae%20work/gongzuotai/src/components/ui/icons.jsx)
 
 ### 组件清单
 
@@ -686,6 +795,14 @@ const { data, loading, error, refresh } = useAsyncData(fetcher, deps)
 | `20260728000001_medicine_tables.sql` | medicine_state, medicine_checkins, medicine_bottles, medicine_logs (4 张) |
 | `20260801000001_work_enhance.sql` | 扩展 tasks（description/status/deadline/user_id）, 新建 work_summaries |
 | `20260816000000_english_tables.sql` | english_cards (1 张) |
+| `20260816000001_life_module_tables.sql` | daily_records, weekly_reviews (2 张) |
+| `20261026000000_cognition_tables.sql` | cognition_entries, cognition_feedbacks (2 张，补录) |
+
+合计 **17 张表**，与 `database.js` 中 17 个 API 模块一一对应。
+
+> ⚠️ `20261026000000_cognition_tables.sql` 是 2026-10-26 补录的：这两张表在认知重塑功能上线时很可能只通过 Supabase Dashboard → SQL Editor 手动创建，未进版本库，导致「换环境重建数据库会漏表」。新增迁移已用 `IF NOT EXISTS` + `DROP POLICY IF EXISTS` 写成幂等脚本，可安全重复执行。
+>
+> 另注：根目录 `supabase-init.sql` 是早期单文件版本，只覆盖 7 张基础表，已被 `migrations/` 取代，不要再用于初始化。
 
 ### 7.2 数据表 ER 概要
 
@@ -795,6 +912,21 @@ const { data, loading, error, refresh } = useAsyncData(fetcher, deps)
 └──────────────────────────────────────────────────────────────┘
 ```
 
+> 上面这张 ASCII 图绘制于 2026-08，未包含生活模块四表。它们的关系如下。
+
+#### 7.2.1 生活模块四表（补充）
+
+| 表 | 唯一约束 | 关键字段 |
+|----|---------|---------|
+| `daily_records` | `(user_id, date)` | done_items, focus_hours, mood, energy(1-5), expenses(JSONB), tomorrow_task |
+| `weekly_reviews` | `(user_id, week_start)` | highlights, problems, improvement |
+| `cognition_entries` | — | date, content, category, mood |
+| `cognition_feedbacks` | `entry_id`（1:1） | biases/evidence/perspectives/challenges(JSONB), reframe, summary, score, raw_analysis |
+
+关系：`cognition_entries 1 ──── 1 cognition_feedbacks`（`entry_id` FK，`ON DELETE CASCADE`）。
+
+`entry_id` 上的 UNIQUE 约束是必需的——`cognitionFeedbacksApi.upsert()` 依赖 `onConflict: 'entry_id'` 做覆盖写；同时 `cognitionFeedbacksApi.getAll()` 使用 `cognition_entries!inner(date, category)` 关联查询，需要真实外键关系才能被 PostgREST 解析。
+
 ---
 
 ## 8. 部署与运行
@@ -848,7 +980,7 @@ npm run preview
 
 ### 8.3 Express 后端（可选）
 
-**文件**：[server/index.js](file:///f:/Users/workbuddy/gongzuotai/server/index.js)
+**文件**：[server/index.js](file:///F:/14143/trae%20work/gongzuotai/server/index.js)
 
 独立的 Express REST API 服务，直接连接 Supabase PostgreSQL（通过 `postgres` 库）。
 
@@ -905,23 +1037,33 @@ npm run preview
 
 | 文件 | 功能 | 行数 |
 |------|------|------|
-| `src/App.jsx` | 根组件，路由与认证 | 304 |
-| `src/db/database.js` | Supabase 客户端 + 13 个 API 模块 | 495 |
+| `src/App.jsx` | 根组件，路由与认证 | 323 |
+| `src/db/database.js` | Supabase 客户端 + 17 个 API 模块 | 688 |
 | `src/db/auth.js` | 认证模块 | 80 |
-| `src/db/medicineStore.js` | 用药业务逻辑 | 324 |
+| `src/db/medicineStore.js` | 用药业务逻辑（多瓶并存） | 384 |
+| `src/db/lifeStore.js` | 生活模块业务逻辑（纯函数） | 313 |
 | `src/db/englishStore.js` | 英语 FSRS 纯函数 | 130 |
 | `src/db/seed.js` | 种子数据初始化 | 121 |
-| `src/components/ui/index.jsx` | UI 组件库（20+ 组件） | 444 |
-| `src/components/ui/icons.jsx` | 图标库（90+ 图标） | 165 |
-| `src/components/work/TaskBoard.jsx` | 任务看板 | 474 |
-| `src/pages/Dashboard.jsx` | 首页仪表盘 | 202 |
+| `src/utils/cognitionEngine.js` | 认知扭曲检测引擎（纯函数） | 648 |
+| `src/hooks/useAsyncData.js` | 通用异步数据 Hook | 49 |
+| `src/components/ui/index.jsx` | UI 组件库（20+ 组件） | 443 |
+| `src/components/ui/icons.jsx` | 图标库（90+ 图标） | 181 |
+| `src/components/work/TaskBoard.jsx` | 任务看板 | 473 |
+| `src/components/work/WorkSummary.jsx` | 工作小结 | 355 |
+| `src/pages/Dashboard.jsx` | 首页仪表盘 | 206 |
 | `src/pages/Study.jsx` | 学习模块 | 395 |
-| `src/pages/English.jsx` | 英语学习 | ~400 |
-| `src/pages/Medicine.jsx` | 用药提醒 | ~400 |
-| `src/pages/Life.jsx` | 生活笔记 | ~300 |
-| `src/pages/Review.jsx` | 每日复盘 | ~200 |
-| `server/index.js` | Express 后端 | 374 |
-| `supabase/migrations/20260728000000_init.sql` | 初始表迁移 | 98 |
+| `src/pages/English.jsx` | 英语学习 | 258 |
+| `src/pages/Medicine.jsx` | 用药提醒（全项目最大单文件） | 755 |
+| `src/pages/Life.jsx` | 生活模块容器（4 子 Tab） | 63 |
+| `src/pages/life/CognitionTab.jsx` | 认知重塑主界面 | 454 |
+| `src/pages/life/FeedbackCard.jsx` | 认知反馈展示 | 353 |
+| `src/pages/life/WeeklyTab.jsx` | 每周复盘 | 404 |
+| `src/pages/life/NotesTab.jsx` | 随笔列表 | 320 |
+| `src/pages/life/DailyTab.jsx` | 每日记录 | 298 |
+| `src/pages/Review.jsx` | 每日复盘 | 232 |
+| `server/index.js` | Express 后端（备选，已与主链路脱节） | 374 |
+| `supabase/migrations/20260728000000_init.sql` | 初始表迁移（7 张） | 98 |
+| `supabase/migrations/20261026000000_cognition_tables.sql` | 认知重塑两表（补录） | 59 |
 
 ### B. 全局事件与约定
 
@@ -937,7 +1079,16 @@ npm run preview
 **数据安全**：
 - 所有 Supabase 表启用 RLS
 - 策略规则：`auth.uid() = user_id`（用户只能操作自己的数据）
+- API 层额外用 `eq('user_id', userId)` 显式过滤（双保险）
 - 用药模块额外使用 `(user_id)` 或 `(user_id, date)` 唯一约束防止重复
+- `cognition_feedbacks.entry_id` 唯一约束 + `ON DELETE CASCADE`，条目删除时反馈自动清理
+
+**已知易踩的坑**：
+- **两套 mood 定义不要混用**：`src/pages/life/constants.js`（随笔用，happy/calm/tired/healed/sad/busy）与 `src/db/lifeStore.js` 的 `MOODS`（每日记录用，great/good/ok/low/bad）是独立的，各自对应不同表和组件。
+- **用药余量有两处真相**：`medicine_state.remaining_pills` 只代表当前活跃瓶，`medicine_bottles.remaining_pills` 才是每瓶真实余量。切瓶前后必须同步。
+- **`server/index.js` 已脱节**：它是早期备选后端，表结构没有 `user_id`，不要用它对接现有数据库。
+- **`supabase-init.sql` 已过时**：初始化请只用 `supabase/migrations/`。
+- **PWA 构建**：`vite-plugin-pwa` / workbox-build 曾出现构建失败，`vite.config.js` 留有 `DISABLE_PWA=1` 逃生开关。
 
 **状态管理**：
 - 无全局状态管理库（Redux/Zustand 等）
