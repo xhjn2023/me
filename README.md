@@ -4,45 +4,60 @@
 
 ## 功能
 
-- **首页仪表盘** — 今日任务进度、快捷入口、最近笔记预览
-- **任务管理** — 添加/完成/删除任务，优先级标记，按状态筛选
-- **笔记** — 快速记录笔记，支持置顶、编辑、删除
-- **日记** — 每日心情记录，每天一篇，数据自动保存
-- **用药提醒** — 每日吃药打卡、药瓶瓶号管理、余量追踪、低量购药提醒、历史记录查看
+- **首页仪表盘** — 今日任务进度、本周学习时长、连续打卡、每日治愈短句
+- **工作** — 任务看板（增删改查 / 优先级 / 状态流转 / 筛选排序）+ 日周月工作小结
+- **学习** — 课程进度追踪、推荐书籍、学习时长统计
+- **英语** — FSRS 间隔重复背单词（六级 / 考研词库）+ Web Speech API 发音
+- **生活** — 4 个子 Tab：每日记录 / 每周复盘 / 随笔 / **认知重塑**
+- **用药提醒** — 打卡、补打卡、多瓶并存、余量追踪、低量购药提醒、操作日志
+- **副业** — 项目进度追踪
+- **复盘** — 每日情绪 + 四维评分（体能 / 心力 / 脑力 / 情绪）
 - **PWA** — 手机浏览器安装到桌面，离线可用
+
+### 认知重塑
+
+生活模块里最有意思的部分：一个**纯前端、不依赖 LLM** 的认知扭曲检测引擎（`src/utils/cognitionEngine.js`）。写下一段心情记录，实时返回结构化的批判性反馈。
+
+- 检测依据对齐 Burns《Feeling Good》15 项认知扭曲 + 开源 CBT App Sanctum 的 Thought Record 7 栏 + MoodJam/Quirk 去灾难化三步法
+- 输出：命中的扭曲、支持/反驳证据、替代视角、认知重构、苏格拉底追问、思辨得分
+- 设计原则：不讨好、客观、有批判性、可执行
 
 ## 技术栈
 
 | 技术 | 用途 |
 |------|------|
-| React 18 | UI 框架 |
+| React 18 | UI 框架（路由级懒加载） |
 | Vite 5 | 构建工具 |
 | TailwindCSS | 样式（淡蓝主题） |
-| Dexie.js | IndexedDB 数据持久化 |
-| dexie-react-hooks | 响应式数据查询 |
+| Supabase | 认证 + PostgreSQL 数据库 + RLS |
+| ts-fsrs | 英语间隔重复调度算法 |
 | vite-plugin-pwa | PWA 离线支持 |
 
 ## 数据持久化
 
-所有数据通过 Dexie.js 存储在浏览器 IndexedDB 中：
-- 关闭浏览器再打开，数据依然存在
-- 支持批量写入、并发写入、大文本存储
-- 通过压力测试验证（1000条批量写入、50并发、1MB大文本、5000条极限）
+所有业务数据存于 **Supabase PostgreSQL**，通过 `@supabase/supabase-js` 直连 PostgREST：
+
+- 每个用户的数据通过 `user_id` 隔离，所有表启用 RLS 策略 `auth.uid() = user_id`
+- 前端 API 层额外显式 `eq('user_id', userId)` 过滤（双保险）
+- 表结构见 `supabase/migrations/`，共 17 张表
+- 纯函数业务层（`lifeStore` / `englishStore` / `cognitionEngine`）不依赖 Supabase，可单测
 
 ## 开发
 
 ```bash
-npm install      # 安装依赖
-npm run dev      # 开发服务器
-npm run build    # 生产构建
-npm run stress-test  # 压力测试
+npm install          # 安装依赖
+npm run dev          # 开发服务器 → http://localhost:5173
+npm run server       # 仅 Express 备选后端 → http://localhost:3001
+npm run dev:all      # 前端 + 后端同时启动
+npm test             # 单元测试（englishStore / lifeStore）
+npm run build        # 生产构建
+npm run deploy:cf    # 部署到 Cloudflare Pages
 ```
 
 ## 压力测试
 
 ```bash
-npm run stress-test              # 工作台主数据层（IndexedDB）
-npm run medicine-stress-test     # 用药提醒模块（localStorage）
+npm run stress-test    # 数据层压力测试
 ```
 
 测试覆盖：批量写入、索引查询、并发写入、大文本存储、更新完整性、唯一约束、批量删除、持久化验证、极限压力（5000条）。
@@ -51,7 +66,7 @@ npm run medicine-stress-test     # 用药提醒模块（localStorage）
 
 ## 用药提醒模块
 
-独立使用 localStorage 存储，无需后端依赖，关闭页面后数据依然保留。
+数据存于 Supabase 的 4 张表，多设备同步；业务逻辑在 `src/db/medicineStore.js`（纯函数，可单测）。
 
 ### 功能清单
 
@@ -74,19 +89,21 @@ npm run medicine-stress-test     # 用药提醒模块（localStorage）
 1. 进入底部导航「用药」标签
 2. 首次使用：点击右上角「🔔提醒」授予通知权限（可选）
 3. 每天服药后点击大圆点打卡，圆点变为粉色 ✓ 表示已完成
-4. 当前瓶吃完后点击「换新瓶」，瓶号自动 +1、余量重置
+4. 旧瓶没吃完也能点「开新瓶」，瓶号自动取最大值 +1、余量重置；之后可在瓶次记录里「切换打卡瓶」回到旧瓶
 5. 实际颗数与系统不符时点击「修改余量」手动校准
 6. 点击「设置」调整单瓶颗数 / 每日剂量 / 低量阈值 / 提醒时间
 7. 历史记录在底部卡片切换「打卡记录 / 瓶次记录 / 操作日志」三个 Tab
 
-### 数据存储位置
+### 数据表
 
-| Key | 内容 |
+| 表 | 内容 |
 |-----|------|
-| `medicine:state` | 当前药瓶状态与配置 |
-| `medicine:checkins` | 打卡日集合 |
-| `medicine:bottles` | 瓶次历史 |
-| `medicine:logs` | 操作日志（上限 1000 条） |
+| `medicine_state` | 当前活跃瓶状态与配置（每用户单行） |
+| `medicine_checkins` | 打卡日集合，`(user_id, date)` 唯一 |
+| `medicine_bottles` | 瓶次历史，每瓶的真实余量存在这里 |
+| `medicine_logs` | 操作日志（取最近 200 条） |
+
+> 多瓶模型：`medicine_state.bottle_number` 只是「当前在打哪一瓶」的游标，每瓶余量以 `medicine_bottles.remaining_pills` 为准。切瓶前必须把当前瓶余量回写，否则数据会漂移。
 
 ### 功能测试清单
 
@@ -95,7 +112,8 @@ npm run medicine-stress-test     # 用药提醒模块（localStorage）
 - [ ] 重复打卡：Toast 提示「今日已打卡」
 - [ ] 取消打卡：圆点恢复、余量恢复
 - [ ] 修改余量：输入负数 → 提示「不能为负数」；保存后进度条更新
-- [ ] 换新瓶：确认后瓶号 +1、余量重置 30、瓶次记录新增一条
+- [ ] 开新瓶：旧瓶仍有余量时也能开，新瓶号 = 最大瓶号 + 1、余量重置
+- [ ] 切换打卡瓶：切到进行中的瓶，打卡记到该瓶；已吃完的瓶不可切换
 - [ ] 低量提醒：余量 ≤ 阈值时顶部出现橙色提示
 - [ ] 预估吃完日期：余量变化时日期同步更新
 - [ ] 设置：修改单瓶颗数 / 剂量 / 阈值 / 提醒时间后刷新仍保留
@@ -103,17 +121,6 @@ npm run medicine-stress-test     # 用药提醒模块（localStorage）
 - [ ] 历史记录：三个 Tab 切换正常、空状态提示正确
 - [ ] 持久化：刷新页面后所有数据保留
 
-### 压力测试覆盖
+### 测试
 
-`npm run medicine-stress-test` 共 45 项断言：
-
-1. 连续 365 天打卡写入与 streak 计算
-2. 500 次频繁修改药量、日志收敛
-3. 50 次频繁切换药瓶、瓶次历史正确
-4. 1500 次操作后日志收敛至 1000 条上限
-5. 100 个交错并发操作数据一致性
-6. 数据完整性（设置 / 余量 / 瓶号持久化）
-7. 边界校验（负数余量、0 瓶号、非法字符串被拒绝）
-8. localStorage 容错（JSON 损坏回退默认值不崩溃）
-9. 持久化（重读数据完全一致）
-10. 性能（10000 天打卡查询 < 500ms）
+单元测试在 `tests/`（`npm test` 覆盖 `englishStore` / `lifeStore` 的纯函数逻辑）；数据层压力测试为 `npm run stress-test`。
