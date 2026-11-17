@@ -4,7 +4,7 @@
  * 数据存于 localStorage，不经过 SW，因此更新数据无需改缓存版本。
  * 升级应用时把 CACHE_NAME 版本号 +1，activate 阶段会自动清理旧缓存。
  */
-var CACHE_NAME = 'pill-tracker-v2';
+var CACHE_NAME = 'pill-tracker-v3';
 var APP_SHELL = [
   './',
   './index.html',

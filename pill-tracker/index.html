@@ -192,6 +192,24 @@
   .hidden{display:none!important}
   @keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
   .pop{animation:pop .35s ease}
+
+  /* 多端同步 */
+  .sync-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:99px;font-size:11px;font-weight:700;cursor:pointer;
+    background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--ink-2);white-space:nowrap}
+  .sync-chip .sd{width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
+  .sync-chip.on .sd{background:var(--mint)}
+  .sync-chip.busy .sd{background:var(--amber)}
+  .sync-chip.err .sd{background:var(--rose)}
+  .sync-row{display:flex;align-items:center;gap:8px;background:var(--blue-l);border-radius:13px;padding:12px 14px;margin-bottom:14px}
+  .sync-row .ic{width:32px;height:32px;border-radius:10px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .sync-row .info{flex:1;min-width:0}
+  .sync-row .info b{font-size:13px;display:block}
+  .sync-row .info span{font-size:11px;color:var(--ink-2)}
+  .code-box{display:flex;align-items:center;gap:8px;margin:10px 0 4px}
+  .code-val{flex:1;background:#fff;border:2px dashed var(--blue);border-radius:12px;padding:12px;text-align:center;
+    font-size:19px;font-weight:800;letter-spacing:2px;color:var(--blue-d);font-family:ui-monospace,Menlo,Consolas,monospace}
+  .sync-note{font-size:11px;color:var(--ink-3);line-height:1.7;margin-top:8px}
+  .btn-sm{padding:10px;font-size:12px}
 </style>
 </head>
 <body>
@@ -208,6 +226,9 @@
       </div>
     </div>
     <div class="header-btns">
+      <button class="sync-chip press" id="syncChip" title="多端同步">
+        <span class="sd"></span><span id="syncChipText">未同步</span>
+      </button>
       <button class="icon-btn press" id="installBtn" aria-label="安装到桌面" title="添加到桌面">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
       </button>
@@ -269,7 +290,7 @@
   <div class="section-title"><h2><span class="dot"></span>最近记录</h2><button id="makeupBtn" class="text-btn">+ 补打卡</button></div>
   <section class="card history" id="historyList"></section>
 
-  <div class="foot">数据仅保存在本机浏览器，不会上传 · 建议定期在设置中导出备份<br/>本工具仅作服药记录辅助，不替代医嘱</div>
+  <div class="foot">数据默认存本机；开启多端同步后跨设备自动合并 · 同步码请妥善保管<br/>本工具仅作服药记录辅助，不替代医嘱</div>
 </div>
 
 <div id="installBar">
@@ -286,6 +307,29 @@
     <div class="field"><label>每日剂量（颗）</label><input type="number" id="setDose" min="1" max="20" /></div>
     <div class="field"><label>低量提醒阈值（颗）</label><input type="number" id="setLow" min="0" max="999" /></div>
     <button class="btn btn-primary press" id="saveSettings">保存设置</button>
+
+    <div class="divider"></div>
+    <div class="mini-title">多端同步</div>
+    <div class="sync-row">
+      <div class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 110-14h4.5"/><path d="M13 3l4 4-4 4"/></svg></div>
+      <div class="info"><b id="syncTitle">尚未开启同步</b><span id="syncSub">用同步码让手机、平板、电脑数据一致</span></div>
+    </div>
+    <div id="syncArea">
+      <button class="btn btn-ghost press" id="syncJoinBtn">输入同步码加入</button>
+      <div style="text-align:center;font-size:11px;color:var(--ink-3);margin:10px 0">或</div>
+      <button class="btn btn-primary press" id="syncCreateBtn">创建新同步码</button>
+    </div>
+    <div id="syncJoined" class="hidden">
+      <div class="code-box">
+        <div class="code-val" id="syncCodeVal">----</div>
+        <button class="btn btn-sm btn-ghost press" id="syncCopyBtn">复制</button>
+      </div>
+      <div class="sync-note">在其他设备打开本页 → 设置 → 输入这个同步码加入，数据会自动合并。同步码相当于密码，请勿外泄。</div>
+      <div class="sheet-actions">
+        <button class="btn btn-sm btn-ghost press" id="syncNowBtn">立即同步</button>
+        <button class="btn btn-sm btn-rose press" id="syncStopBtn">停止同步</button>
+      </div>
+    </div>
 
     <div class="divider"></div>
     <div class="mini-title">数据管理</div>
@@ -340,6 +384,9 @@
 (function(){
   "use strict";
   var KEY = "pill-tracker-v1";
+  var SYNC_CODE_KEY = "pill-sync-code";
+  var SB_URL = "https://cszkekdciqgimsvfgons.supabase.co/rest/v1";
+  var SB_KEY = "sb_publishable_EgAro7H2v76ZHWTbzeN0vA_SToYDLgx";
   var COLORS = ["#5b8def","#34c79a","#8b7cf6","#f5a524","#f2617a","#22b8cf","#ef7bb0","#5c9d6e"];
 
   function ymd(d){var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return y+"-"+m+"-"+day;}
@@ -355,7 +402,8 @@
       settings:{ capacity:30, dose:1, lowThreshold:7 },
       activeBottleNo:1,
       bottles:[{no:1,name:"第 1 瓶",capacity:30,remaining:30,start:t,finished:null}],
-      records:{}
+      records:{},
+      dels:{}
     };
   }
   function activeBottleOf(s){for(var i=s.bottles.length-1;i>=0;i--){if(!s.bottles[i].finished)return s.bottles[i];}return null;}
@@ -367,6 +415,7 @@
       var s=JSON.parse(raw);
       if(!s.settings||!Array.isArray(s.bottles)||!s.records)return defaultState();
       s.v=2;
+      if(!s.dels)s.dels={};
       s.settings.capacity=s.settings.capacity||30;
       s.settings.dose=s.settings.dose||1;
       s.settings.lowThreshold=s.settings.lowThreshold!=null?s.settings.lowThreshold:7;
@@ -376,10 +425,144 @@
       return s;
     }catch(e){return defaultState();}
   }
-  function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast("保存失败，请检查浏览器存储");}}
+  function save(){
+    S._ts=Date.now();
+    try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast("保存失败，请检查浏览器存储");}
+    schedulePush();
+  }
   function activeBottle(){return bottleOf(S,S.activeBottleNo);}
 
   var S=load();
+
+  /* ==================== 多端同步（Supabase REST） ====================
+     设计：一行 = 一个同步码的整包快照。同步码即凭证（请求头 X-Sync-Code）。
+     合并以 records(带 ts) 为事实来源：按日期并集、同日取较新；药瓶余量据记录重算，
+     这样两端各自打卡不会互相覆盖，撤销也能传播。settings/当前瓶取较新一端。 */
+  function getCode(){try{return localStorage.getItem(SYNC_CODE_KEY)||"";}catch(e){return "";}}
+  function setCode(c){try{if(c)localStorage.setItem(SYNC_CODE_KEY,c);else localStorage.removeItem(SYNC_CODE_KEY);}catch(e){}}
+  function newCode(){
+    var a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",s="";
+    for(var i=0;i<8;i++)s+=a.charAt(Math.floor(Math.random()*a.length));
+    return s.slice(0,4)+"-"+s.slice(4);
+  }
+  function sbHeaders(){
+    return {"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","X-Sync-Code":getCode()};
+  }
+  function setSyncChip(state,txt){
+    var chip=$("syncChip");if(!chip)return;
+    chip.classList.remove("on","busy","err");
+    if(state)chip.classList.add(state);
+    $("syncChipText").textContent=txt;
+  }
+  function sbFetch(path,opts,timeout){
+    var code=getCode();if(!code)return Promise.reject(new Error("未设置同步码"));
+    var ctl=typeof AbortController!=="undefined"?new AbortController():null;
+    var timer=ctl?setTimeout(function(){ctl.abort();},timeout||9000):null;
+    opts=opts||{};opts.headers=Object.assign(sbHeaders(),opts.headers||{});
+    if(ctl)opts.signal=ctl.signal;
+    return fetch(SB_URL+path,opts).then(function(r){
+      if(timer)clearTimeout(timer);
+      if(!r.ok)throw new Error("HTTP "+r.status+(r.status===404?"（请先在 Supabase 执行建表 SQL）":""));
+      return r.status===204?null:r.json();
+    }).catch(function(e){if(timer)clearTimeout(timer);throw e;});
+  }
+  function pullRemote(){
+    return sbFetch("/pill_sync?code=eq."+encodeURIComponent(getCode())+"&select=data,updated_at",{method:"GET"})
+      .then(function(rows){return rows&&rows[0]?rows[0].data:null;});
+  }
+  function pushRemote(state){
+    var body={code:getCode(),data:state,updated_at:new Date().toISOString()};
+    return sbFetch("/pill_sync?on_conflict=code",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(body)});
+  }
+  function mergeStates(local,remote){
+    if(!remote||typeof remote!=="object")return local;
+    var out=JSON.parse(JSON.stringify(local));
+    // 0) 删除墓碑：并集取较新时间戳
+    var dels={};Object.keys(local.dels||{}).forEach(function(k){dels[k]=local.dels[k];});
+    Object.keys(remote.dels||{}).forEach(function(k){if((remote.dels[k]||0)>(dels[k]||0))dels[k]=remote.dels[k];});
+    out.dels=dels;
+    // 1) records：并集，同日取 ts 较新者；若被更晚的墓碑标记则剔除（撤销跨端生效）
+    var rec={};Object.keys(local.records||{}).forEach(function(k){rec[k]=local.records[k];});
+    Object.keys(remote.records||{}).forEach(function(k){
+      var a=rec[k],b=remote.records[k];
+      if(!a||(b.ts||0)>(a.ts||0))rec[k]=b;
+    });
+    Object.keys(rec).forEach(function(k){
+      if(dels[k]&&dels[k]>=(rec[k].ts||0))delete rec[k];
+    });
+    out.records=rec;
+    // 2) bottles：按 no 并集；字段取较新数据；余量以合并后 records 重算
+    var map={};(local.bottles||[]).forEach(function(b){map[b.no]=JSON.parse(JSON.stringify(b));});
+    (remote.bottles||[]).forEach(function(b){
+      if(!map[b.no])map[b.no]=JSON.parse(JSON.stringify(b));
+      else if((b.start||"")<(map[b.no].start||"")){ // 保留开瓶更早的那份作为基础
+        var cur=map[b.no];map[b.no]=JSON.parse(JSON.stringify(b));map[b.no].name=map[b.no].name||cur.name;
+      }
+    });
+    Object.keys(map).forEach(function(no){
+      var b=map[no],consumed=0;
+      Object.keys(rec).forEach(function(k){if(rec[k].bottle===+no)consumed+=(rec[k].dose||1);});
+      b.capacity=b.capacity||30;
+      b.remaining=Math.max(0,b.capacity-consumed);
+      if(b.remaining<=0&&!b.finished)b.finished=todayKey();
+    });
+    out.bottles=Object.keys(map).map(function(no){return map[no];}).sort(function(a,b){return a.no-b.no;});
+    // 3) settings / activeBottleNo：取 _ts 较新一端
+    if((remote._ts||0)>(local._ts||0)){
+      out.settings=remote.settings||out.settings;
+      out.activeBottleNo=remote.activeBottleNo||out.activeBottleNo;
+    }
+    var ab=bottleOf(out,out.activeBottleNo);
+    if(!ab||ab.finished){var a=activeBottleOf(out);out.activeBottleNo=a?a.no:(out.bottles.length?out.bottles[out.bottles.length-1].no:1);}
+    return out;
+  }
+  var pushTimer=null,syncing=false,pendingPush=false;
+  function schedulePush(){
+    if(!getCode())return;
+    pendingPush=true;setSyncChip("busy","待同步");
+    clearTimeout(pushTimer);
+    // 推送前先拉取合并，避免整包覆盖掉别的设备刚写入的数据
+    pushTimer=setTimeout(function(){syncNow(false);},900);
+  }
+  function syncNow(pushOnly){
+    if(!getCode())return Promise.resolve(false);
+    if(syncing){pendingPush=true;return Promise.resolve(false);}
+    syncing=true;setSyncChip("busy","同步中");
+    var flow=pushOnly?Promise.resolve(null):pullRemote().catch(function(e){throw e;});
+    return flow.then(function(remote){
+      if(remote){
+        var merged=mergeStates(S,remote);
+        if(JSON.stringify(merged)!==JSON.stringify(S)){
+          S=merged;localStorage.setItem(KEY,JSON.stringify(S));renderAll();
+        }
+      }
+      return pushRemote(S);
+    }).then(function(){
+      syncing=false;pendingPush=false;setSyncChip("on","已同步");updateSyncPanel();
+      return true;
+    }).catch(function(e){
+      syncing=false;setSyncChip("err","同步失败");
+      console.warn("[sync]",e&&e.message);
+      return false;
+    });
+  }
+  function updateSyncPanel(){
+    var code=getCode();
+    $("syncTitle").textContent=code?"已开启多端同步":"尚未开启同步";
+    $("syncSub").textContent=code?"数据会自动在设备间同步":"用同步码让手机、平板、电脑数据一致";
+    $("syncArea").classList.toggle("hidden",!!code);
+    $("syncJoined").classList.toggle("hidden",!code);
+    if(code)$("syncCodeVal").textContent=code;
+    if(!code)setSyncChip("","未同步");
+  }
+  function beginSync(code){
+    setCode(code);updateSyncPanel();setSyncChip("busy","同步中");
+    return pullRemote().then(function(remote){
+      if(remote){S=mergeStates(S,remote);localStorage.setItem(KEY,JSON.stringify(S));renderAll();}
+      return pushRemote(S);
+    }).then(function(){setSyncChip("on","已同步");updateSyncPanel();toast("已加入同步，数据已合并 ✓");})
+      .catch(function(e){setSyncChip("err","同步失败");toast("连接失败："+(e&&e.message||"请检查网络与建表 SQL"));});
+  }
 
   function checkin(dateKey,makeup){
     dateKey=dateKey||todayKey();
@@ -391,6 +574,7 @@
     if(b.remaining<S.settings.dose){toast("「"+b.name+"」余量不足，请选别的瓶或开新瓶");return false;}
     b.remaining-=S.settings.dose;
     S.records[dateKey]={bottle:b.no,dose:S.settings.dose,makeup:!!makeup,ts:Date.now()};
+    if(S.dels&&S.dels[dateKey])delete S.dels[dateKey]; // 重新打卡：清除旧墓碑
     var justFinished=false;
     if(b.remaining<=0){b.finished=todayKey();justFinished=true;}
     if(justFinished){var nx=activeBottleOf(S);S.activeBottleNo=nx?nx.no:b.no;}
@@ -407,6 +591,8 @@
     var b=bottleOf(S,rec.bottle);
     if(b){b.remaining+=rec.dose;if(b.finished)b.finished=null;}
     delete S.records[dateKey];
+    if(!S.dels)S.dels={};
+    S.dels[dateKey]=Date.now(); // 墓碑：让撤销能跨设备传播
     save();renderAll();toast("已取消 "+prettyDate(dateKey)+" 的记录");
   }
   function newBottle(){
@@ -660,10 +846,55 @@
     if(deferredPrompt)$("installBar").classList.add("show");
     else{openSheet("settingsOverlay");toast("iOS 请用 Safari：分享 → 添加到主屏幕");}
   });
+  /* 同步按钮事件 */
+  $("syncChip").addEventListener("click",function(){$("settingsBtn").click();});
+  $("syncJoinBtn").addEventListener("click",function(){
+    var c=prompt("输入其他设备上的同步码（8 位，形如 ABCD-2345）：");
+    if(!c)return;
+    c=c.trim().toUpperCase().replace(/[^A-Z0-9-]/g,"");
+    if(!/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(c)){toast("同步码格式不正确");return;}
+    if(getCode()&&c!==getCode()&&!confirm("更换同步码会用新码的数据覆盖本机，确定吗？"))return;
+    beginSync(c);
+  });
+  $("syncCreateBtn").addEventListener("click",function(){
+    if(getCode()&&!confirm("已有同步码，重新创建将使旧码失效，确定吗？"))return;
+    var c=newCode();
+    setCode(c);
+    updateSyncPanel();setSyncChip("busy","同步中");
+    pushRemote(S).then(function(){setSyncChip("on","已同步");updateSyncPanel();toast("同步已开启，记下你的同步码 ✓");})
+      .catch(function(e){setCode("");updateSyncPanel();setSyncChip("err","同步失败");toast("创建失败："+(e&&e.message||"请检查网络与建表 SQL"));});
+  });
+  $("syncCopyBtn").addEventListener("click",function(){
+    var c=getCode();if(!c)return;
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(c).then(function(){toast("同步码已复制");},function(){fallbackCopy(c);});}
+    else fallbackCopy(c);
+  });
+  function fallbackCopy(t){var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("同步码已复制");}catch(e){}document.body.removeChild(ta);}
+  $("syncNowBtn").addEventListener("click",function(){
+    if(!navigator.onLine){toast("当前离线，稍后自动重试");return;}
+    syncNow(false).then(function(ok){toast(ok?"同步完成 ✓":"同步失败，请稍后重试");});
+  });
+  $("syncStopBtn").addEventListener("click",function(){
+    if(!confirm("停止同步后本机数据保留，但不再与其他设备同步。确定吗？"))return;
+    setCode("");clearTimeout(pushTimer);updateSyncPanel();toast("已停止同步");
+  });
+
+  /* 回到前台 / 恢复网络时自动拉取合并，保持多端一致 */
+  document.addEventListener("visibilitychange",function(){
+    if(!document.hidden&&getCode()&&navigator.onLine)syncNow(false);
+  });
+  window.addEventListener("online",function(){if(getCode())syncNow(false);});
+
   if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol)){
     window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
   }
 
+  // 初始化同步面板状态；已设码则静默同步一次
+  updateSyncPanel();
+  if(getCode()){
+    setSyncChip("busy","同步中");
+    if(navigator.onLine)syncNow(false);else setSyncChip("","离线");
+  }
   renderAll();
 })();
 </script>
