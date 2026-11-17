@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#5b8def" />
+<meta name="description" content="每日一颗服药记录 · 多瓶管理 · 可添加到手机桌面离线使用" />
+<title>服药记录 · 每日一颗</title>
+<!-- PWA: Web App Manifest（架构参考 amajid17/work-tracker, MIT） -->
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="./icons/favicon.svg" />
+<link rel="apple-touch-icon" href="./icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="服药记录" />
+<meta name="mobile-web-app-capable" content="yes" />
+<style>
+  :root{
+    --blue:#5b8def; --blue-d:#3f6fd8; --blue-l:#eaf1ff;
+    --mint:#34c79a; --mint-l:#e6f8f1;
+    --amber:#f5a524; --amber-l:#fff4e0;
+    --rose:#f2617a; --rose-l:#ffecef;
+    --violet:#8b7cf6; --violet-l:#efecff;
+    --ink:#26344a; --ink-2:#63748f; --ink-3:#9aa9bf;
+    --bg:#f2f6ff; --card:#ffffff; --line:#eaf0f8;
+    --shadow:0 10px 30px rgba(63,111,216,.10);
+    --r:20px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:linear-gradient(160deg,#eaf2ff 0%,#f6f9ff 40%,#f2f7ff 100%);
+    color:var(--ink); line-height:1.5; min-height:100vh;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  .wrap{max-width:520px;margin:0 auto;padding:22px 16px calc(40px + env(safe-area-inset-bottom))}
+  .press{transition:transform .12s ease,box-shadow .2s ease,background .2s ease}
+  .press:active{transform:scale(.95)}
+
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:46px;height:46px;border-radius:15px;background:linear-gradient(135deg,var(--blue),#7aa6ff);
+    display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 8px 20px rgba(91,141,239,.35)}
+  .brand h1{font-size:19px;font-weight:800;letter-spacing:.5px}
+  .brand p{font-size:12px;color:var(--ink-2);margin-top:1px}
+  .header-btns{display:flex;gap:8px}
+  .icon-btn{width:40px;height:40px;border-radius:13px;background:var(--card);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;color:var(--ink-2);cursor:pointer;box-shadow:var(--shadow)}
+
+  .card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);border:1px solid rgba(234,240,248,.8)}
+
+  .today{padding:22px;margin-top:16px;text-align:center;position:relative;overflow:hidden}
+  .today::before{content:"";position:absolute;top:-60px;right:-40px;width:180px;height:180px;
+    background:radial-gradient(circle,rgba(91,141,239,.12),transparent 70%);border-radius:50%}
+  .today-label{font-size:13px;color:var(--ink-2);font-weight:600}
+  .today-date{font-size:12px;color:var(--ink-3);margin-top:2px}
+  .pill-btn{width:132px;height:132px;border-radius:50%;margin:18px auto 6px;border:none;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;position:relative;
+    background:linear-gradient(145deg,#eaf1ff,#dbe8ff);color:var(--blue);box-shadow:inset 0 0 0 2px #d5e3ff,0 10px 24px rgba(91,141,239,.18)}
+  .pill-btn.done{background:linear-gradient(145deg,#43d3a6,#2fbd90);color:#fff;box-shadow:0 12px 26px rgba(52,199,154,.4)}
+  .pill-btn.empty{background:linear-gradient(145deg,#fff0f2,#ffe3e8);color:var(--rose);box-shadow:inset 0 0 0 2px #ffd7de}
+  .pill-btn .big{font-size:15px;font-weight:800}
+  .pill-btn .sub{font-size:11px;opacity:.85}
+  .pill-btn .ring{position:absolute;inset:-7px;border-radius:50%;border:2px dashed rgba(91,141,239,.25)}
+  .pill-btn.done .ring{border-color:rgba(52,199,154,.35)}
+  .today-status{font-size:13px;color:var(--ink-2);margin-top:8px;min-height:20px}
+  .today-status b{color:var(--blue)}
+  .using-bottle{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:5px 12px;border-radius:99px;
+    background:var(--blue-l);color:var(--blue-d);font-size:12px;font-weight:700}
+  .using-bottle .d{width:7px;height:7px;border-radius:50%;background:var(--blue)}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .stat{padding:14px 8px;text-align:center}
+  .stat .num{font-size:22px;font-weight:800;color:var(--blue)}
+  .stat .num.mint{color:var(--mint)}
+  .stat .num.amber{color:var(--amber)}
+  .stat .cap{font-size:11px;color:var(--ink-3);margin-top:3px}
+
+  .section-title{display:flex;align-items:center;justify-content:space-between;margin:22px 4px 10px}
+  .section-title h2{font-size:15px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .section-title .dot{width:7px;height:7px;border-radius:50%;background:var(--blue)}
+  .text-btn{background:none;border:none;color:var(--blue);font-size:12px;cursor:pointer;font-weight:700;
+    display:flex;align-items:center;gap:3px;padding:4px}
+
+  .bottles{display:flex;flex-direction:column;gap:10px}
+  .bcard{padding:16px;position:relative;transition:box-shadow .2s,border-color .2s}
+  .bcard.active{border-color:var(--blue);box-shadow:0 10px 28px rgba(91,141,239,.18)}
+  .bcard.finished{opacity:.62}
+  .bcard-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .bcard-id{display:flex;align-items:center;gap:9px;min-width:0}
+  .bdot{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    color:#fff;flex-shrink:0}
+  .bname{font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .badge{font-size:10px;padding:2px 7px;border-radius:99px;font-weight:700;white-space:nowrap}
+  .badge.using{background:var(--blue-l);color:var(--blue-d)}
+  .badge.out{background:var(--rose-l);color:#d0475f}
+  .bsub{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .bcard-count{font-size:20px;font-weight:800;color:var(--blue);white-space:nowrap}
+  .bcard-count small{font-size:11px;color:var(--ink-3);font-weight:500}
+  .bprog{height:9px;border-radius:99px;background:var(--blue-l);overflow:hidden;margin-top:12px}
+  .bprog i{display:block;height:100%;border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+  .bprog.low i{background:linear-gradient(90deg,var(--amber),#ffc86b)!important}
+  .bprog.out i{background:linear-gradient(90deg,var(--rose),#ff9aae)!important}
+  .bcard-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px}
+  .bcard-foot .est{font-size:11px;color:var(--ink-3)}
+  .bcard-ops{display:flex;gap:6px}
+  .mini-btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:5px 10px;font-size:11px;
+    color:var(--ink-2);cursor:pointer;white-space:nowrap}
+  .mini-btn.primary{background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700}
+  .mini-btn.del{color:var(--rose)}
+  .add-bottle{width:100%;padding:13px;border-radius:14px;border:2px dashed #cfe0ff;background:var(--blue-l);
+    color:var(--blue-d);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;gap:6px}
+
+  .cal{padding:16px}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .cal-head .m{font-size:14px;font-weight:700}
+  .cal-nav{display:flex;gap:6px}
+  .cal-nav button{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:#fff;
+    color:var(--ink-2);cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;font-size:11px;color:var(--ink-3);margin-bottom:6px}
+  .grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+  .cell{min-width:0;aspect-ratio:1;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:12px;color:var(--ink-2);background:#f7faff;position:relative;cursor:pointer}
+  .cell.blank{background:transparent;cursor:default}
+  .cell.taken{background:linear-gradient(145deg,#43d3a6,#2fbd90);color:#fff;font-weight:700;box-shadow:0 4px 10px rgba(52,199,154,.3)}
+  .cell.today{outline:2px solid var(--blue);outline-offset:1px}
+  .cell.makeup::after{content:"";position:absolute;bottom:5px;width:4px;height:4px;border-radius:50%;background:var(--amber)}
+  .cell.taken.makeup::after{background:#fff}
+  .cell.future{opacity:.4}
+  .legend{display:flex;gap:14px;justify-content:center;margin-top:12px;font-size:11px;color:var(--ink-3)}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+  .history{padding:6px 16px}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:12px 2px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row-l{display:flex;align-items:center;gap:10px}
+  .row-ico{width:32px;height:32px;border-radius:10px;background:var(--mint-l);color:var(--mint);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .row-ico.makeup{background:var(--amber-l);color:var(--amber)}
+  .row-t{font-size:13px;font-weight:600}
+  .row-s{font-size:11px;color:var(--ink-3);margin-top:1px}
+  .row-tag{font-size:11px;color:var(--ink-3);background:none;border:none;cursor:pointer;padding:4px}
+  .row-tag b{color:var(--blue)}
+  .empty{text-align:center;padding:30px 10px;color:var(--ink-3);font-size:13px}
+
+  .foot{text-align:center;font-size:11px;color:var(--ink-3);margin-top:24px;line-height:1.8}
+
+  .overlay{position:fixed;inset:0;background:rgba(30,45,70,.42);backdrop-filter:blur(3px);z-index:50;
+    display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .sheet{width:100%;max-width:520px;background:#fff;border-radius:24px 24px 0 0;padding:22px 20px calc(24px + env(safe-area-inset-bottom));
+    transform:translateY(30px);transition:transform .3s cubic-bezier(.4,0,.2,1);max-height:88vh;overflow-y:auto}
+  .overlay.show .sheet{transform:translateY(0)}
+  .sheet h3{font-size:17px;margin-bottom:4px}
+  .sheet .desc{font-size:12px;color:var(--ink-3);margin-bottom:18px}
+  .field{margin-bottom:15px}
+  .field label{display:block;font-size:12px;color:var(--ink-2);font-weight:600;margin-bottom:6px}
+  .field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px;
+    color:var(--ink);background:#f9fbff;outline:none}
+  .field input:focus{border-color:var(--blue);background:#fff}
+  .sheet-actions{display:flex;gap:10px;margin-top:20px}
+  .sheet-actions .btn{padding:13px}
+  .btn{flex:1;border:none;border-radius:14px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:6px}
+  .btn-primary{background:var(--blue);color:#fff;box-shadow:0 8px 18px rgba(91,141,239,.3)}
+  .btn-ghost{background:var(--blue-l);color:var(--blue-d)}
+  .btn-rose{background:var(--rose-l);color:#d0475f}
+  .btn-dark{background:var(--ink);color:#fff}
+  .divider{height:1px;background:var(--line);margin:20px 0 16px}
+  .mini-title{font-size:11px;color:var(--ink-3);margin-bottom:10px;font-weight:600}
+  .data-btns{display:flex;gap:10px;flex-wrap:wrap}
+  .data-btns .btn{flex:1 1 45%;font-size:12px;padding:11px;background:var(--blue-l);color:var(--blue-d)}
+  .install-guide{background:var(--blue-l);border-radius:12px;padding:12px 14px;font-size:12px;color:var(--blue-d);line-height:1.7}
+  .install-guide b{display:block;margin-bottom:3px}
+
+  #toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:99px;font-size:13px;z-index:80;
+    opacity:0;pointer-events:none;transition:.3s;box-shadow:0 10px 30px rgba(0,0,0,.2);white-space:nowrap;max-width:90vw;text-align:center}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #installBar{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));
+    width:calc(100% - 32px);max-width:488px;z-index:70;background:var(--ink);color:#fff;border-radius:16px;
+    padding:12px 14px;align-items:center;gap:10px;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+  #installBar.show{display:flex}
+  #installBar .txt{flex:1;font-size:12px;line-height:1.4}
+  #installBar button{border:none;border-radius:10px;background:var(--blue);color:#fff;font-weight:700;font-size:12px;
+    padding:9px 14px;cursor:pointer;white-space:nowrap}
+  #installBar .x{background:transparent;color:#9aa9bf;padding:6px}
+
+  .hidden{display:none!important}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+  .pop{animation:pop .35s ease}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5l-7-7a4.95 4.95 0 017-7l7 7a4.95 4.95 0 01-7 7z"/><path d="M8.5 8.5l7 7"/></svg>
+      </div>
+      <div>
+        <h1>服药记录</h1>
+        <p>每日一颗 · 坚持就是良药</p>
+      </div>
+    </div>
+    <div class="header-btns">
+      <button class="icon-btn press" id="installBtn" aria-label="安装到桌面" title="添加到桌面">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
+      </button>
+      <button class="icon-btn press" id="settingsBtn" aria-label="设置">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="card today">
+    <div class="today-label">今日服药</div>
+    <div class="today-date" id="todayDate"></div>
+    <button class="pill-btn press" id="checkinBtn">
+      <span class="ring"></span>
+      <svg id="pillIcon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5l-7-7a4.95 4.95 0 017-7l7 7a4.95 4.95 0 01-7 7z"/><path d="M8.5 8.5l7 7"/></svg>
+      <span class="big" id="pillBig">点击打卡</span>
+      <span class="sub" id="pillSub">记录 today's dose</span>
+    </button>
+    <div class="using-bottle" id="usingBottle"><span class="d"></span><span id="usingText">当前使用 第 1 瓶</span></div>
+    <div class="today-status" id="todayStatus"></div>
+  </section>
+
+  <div class="stats">
+    <div class="card stat"><div class="num" id="statStreak">0</div><div class="cap">连续天数</div></div>
+    <div class="card stat"><div class="num mint" id="statTotal">0</div><div class="cap">累计服药</div></div>
+    <div class="card stat"><div class="num amber" id="statRate">0%</div><div class="cap">本月达标率</div></div>
+  </div>
+
+  <div class="section-title">
+    <h2><span class="dot"></span>我的药瓶 <span id="bottleCount" style="font-size:11px;color:var(--ink-3);font-weight:500"></span></h2>
+    <button class="text-btn" id="addBottleTop">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>开新瓶
+    </button>
+  </div>
+  <div class="bottles" id="bottleList"></div>
+  <button class="add-bottle press" id="addBottleBottom" style="margin-top:10px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    开一瓶新的（每瓶 <span id="addCap">30</span> 颗）
+  </button>
+
+  <div class="section-title"><h2><span class="dot"></span>服药日历</h2></div>
+  <section class="card cal">
+    <div class="cal-head">
+      <div class="m" id="calMonth"></div>
+      <div class="cal-nav">
+        <button class="press" id="prevMonth" aria-label="上个月"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button class="press" id="nextMonth" aria-label="下个月"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+      </div>
+    </div>
+    <div class="week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+    <div class="grid" id="calGrid"></div>
+    <div class="legend">
+      <span><i style="background:linear-gradient(145deg,#43d3a6,#2fbd90)"></i>已服药</span>
+      <span><i style="background:#f7faff;border:1px solid #eaf0f8"></i>未服药</span>
+      <span><i style="background:var(--amber)"></i>补打卡</span>
+    </div>
+  </section>
+
+  <div class="section-title"><h2><span class="dot"></span>最近记录</h2><button id="makeupBtn" class="text-btn">+ 补打卡</button></div>
+  <section class="card history" id="historyList"></section>
+
+  <div class="foot">数据仅保存在本机浏览器，不会上传 · 建议定期在设置中导出备份<br/>本工具仅作服药记录辅助，不替代医嘱</div>
+</div>
+
+<div id="installBar">
+  <div class="txt">📲 添加到手机桌面，像 App 一样打开</div>
+  <button id="installAccept">安装</button>
+  <button class="x" id="installDismiss">✕</button>
+</div>
+
+<div class="overlay" id="settingsOverlay">
+  <div class="sheet">
+    <h3>设置</h3>
+    <div class="desc">调整服药计划与数据管理</div>
+    <div class="field"><label>新瓶默认颗数</label><input type="number" id="setCapacity" min="1" max="999" /></div>
+    <div class="field"><label>每日剂量（颗）</label><input type="number" id="setDose" min="1" max="20" /></div>
+    <div class="field"><label>低量提醒阈值（颗）</label><input type="number" id="setLow" min="0" max="999" /></div>
+    <button class="btn btn-primary press" id="saveSettings">保存设置</button>
+
+    <div class="divider"></div>
+    <div class="mini-title">数据管理</div>
+    <div class="data-btns">
+      <button class="btn press" id="exportBtn">导出备份</button>
+      <button class="btn press" id="importBtn">导入备份</button>
+      <button class="btn btn-rose press" id="resetBtn">清空全部数据</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" class="hidden" />
+
+    <div class="divider"></div>
+    <div class="install-guide">
+      <b>📲 添加到手机桌面</b>
+      <span id="installGuideText">iPhone：用 Safari 打开 → 分享 → 添加到主屏幕<br/>安卓：用 Chrome 打开 → 菜单 → 安装应用 / 添加到主屏幕<br/>添加后可全屏打开，并支持离线使用。</span>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn btn-dark press" id="closeSettings">完成</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="makeupOverlay">
+  <div class="sheet">
+    <h3>补打卡</h3>
+    <div class="desc">为忘记记录的日子补上服药记录（按当日剂量扣减当前选中的药瓶）</div>
+    <div class="field"><label>选择日期</label><input type="date" id="makeupDate" /></div>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost press" id="cancelMakeup">取消</button>
+      <button class="btn btn-primary press" id="confirmMakeup">确认补卡</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="bottleOverlay">
+  <div class="sheet">
+    <h3 id="bottleSheetTitle">编辑药瓶</h3>
+    <div class="desc">修改瓶名、容量或剩余颗数</div>
+    <div class="field"><label>药瓶名称</label><input type="text" id="bottleName" maxlength="16" placeholder="例如：第 2 瓶" /></div>
+    <div class="field"><label>每瓶颗数</label><input type="number" id="bottleCap" min="1" max="999" /></div>
+    <div class="field"><label>剩余颗数</label><input type="number" id="bottleRem" min="0" max="999" /></div>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost press" id="cancelBottle">取消</button>
+      <button class="btn btn-primary press" id="saveBottle">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var KEY = "pill-tracker-v1";
+  var COLORS = ["#5b8def","#34c79a","#8b7cf6","#f5a524","#f2617a","#22b8cf","#ef7bb0","#5c9d6e"];
+
+  function ymd(d){var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return y+"-"+m+"-"+day;}
+  function todayKey(){return ymd(new Date());}
+  function addDays(key,n){var p=key.split("-");var d=new Date(+p[0],+p[1]-1,+p[2]);d.setDate(d.getDate()+n);return ymd(d);}
+  function prettyDate(key){if(!key)return"—";var p=key.split("-");return +p[1]+"月"+(+p[2])+"日";}
+  function weekName(key){var p=key.split("-");var d=new Date(+p[0],+p[1]-1,+p[2]);return "周"+"日一二三四五六".charAt(d.getDay());}
+
+  function defaultState(){
+    var t=todayKey();
+    return {
+      v:2,
+      settings:{ capacity:30, dose:1, lowThreshold:7 },
+      activeBottleNo:1,
+      bottles:[{no:1,name:"第 1 瓶",capacity:30,remaining:30,start:t,finished:null}],
+      records:{}
+    };
+  }
+  function activeBottleOf(s){for(var i=s.bottles.length-1;i>=0;i--){if(!s.bottles[i].finished)return s.bottles[i];}return null;}
+  function bottleOf(s,no){return s.bottles.find(function(b){return b.no===no;});}
+  function load(){
+    try{
+      var raw=localStorage.getItem(KEY);
+      if(!raw)return defaultState();
+      var s=JSON.parse(raw);
+      if(!s.settings||!Array.isArray(s.bottles)||!s.records)return defaultState();
+      s.v=2;
+      s.settings.capacity=s.settings.capacity||30;
+      s.settings.dose=s.settings.dose||1;
+      s.settings.lowThreshold=s.settings.lowThreshold!=null?s.settings.lowThreshold:7;
+      s.bottles.forEach(function(b){if(!b.name)b.name="第 "+b.no+" 瓶";if(b.capacity==null)b.capacity=30;});
+      var ab=bottleOf(s,s.activeBottleNo);
+      if(!s.activeBottleNo||!ab||ab.finished){var a=activeBottleOf(s);s.activeBottleNo=a?a.no:(s.bottles.length?s.bottles[s.bottles.length-1].no:1);}
+      return s;
+    }catch(e){return defaultState();}
+  }
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast("保存失败，请检查浏览器存储");}}
+  function activeBottle(){return bottleOf(S,S.activeBottleNo);}
+
+  var S=load();
+
+  function checkin(dateKey,makeup){
+    dateKey=dateKey||todayKey();
+    if(S.records[dateKey]){toast("这一天已经服过药了");return false;}
+    if(dateKey>todayKey()){toast("不能给未来日期打卡");return false;}
+    var b=activeBottle();
+    if(!b){toast("没有可用的药瓶，请先开一瓶");return false;}
+    if(b.finished){toast("当前药瓶已吃完，请选一瓶或开新瓶");return false;}
+    if(b.remaining<S.settings.dose){toast("「"+b.name+"」余量不足，请选别的瓶或开新瓶");return false;}
+    b.remaining-=S.settings.dose;
+    S.records[dateKey]={bottle:b.no,dose:S.settings.dose,makeup:!!makeup,ts:Date.now()};
+    var justFinished=false;
+    if(b.remaining<=0){b.finished=todayKey();justFinished=true;}
+    if(justFinished){var nx=activeBottleOf(S);S.activeBottleNo=nx?nx.no:b.no;}
+    save();renderAll();
+    if(justFinished){toast("「"+b.name+"」已吃完 ✓ "+nextHint());}
+    else toast(makeup?("已补打卡 "+prettyDate(dateKey)):"打卡成功，记得按时服药 ✓");
+    return true;
+  }
+  function nextHint(){var n=activeBottle();return n?"已切到「"+n.name+"」":"请开新瓶";}
+  function undoCheckin(dateKey){
+    dateKey=dateKey||todayKey();
+    var rec=S.records[dateKey];
+    if(!rec){toast("这一天没有服药记录");return;}
+    var b=bottleOf(S,rec.bottle);
+    if(b){b.remaining+=rec.dose;if(b.finished)b.finished=null;}
+    delete S.records[dateKey];
+    save();renderAll();toast("已取消 "+prettyDate(dateKey)+" 的记录");
+  }
+  function newBottle(){
+    var maxNo=0;S.bottles.forEach(function(x){if(x.no>maxNo)maxNo=x.no;});
+    var cap=S.settings.capacity;
+    S.bottles.push({no:maxNo+1,name:"第 "+(maxNo+1)+" 瓶",capacity:cap,remaining:cap,start:todayKey(),finished:null});
+    S.activeBottleNo=maxNo+1;
+    save();renderAll();toast("已开「第 "+(maxNo+1)+" 瓶」，"+cap+" 颗，并设为当前瓶");
+  }
+  function selectBottle(no){
+    var b=bottleOf(S,no);
+    if(!b){toast("找不到该药瓶");return;}
+    if(b.finished){toast("这瓶已吃完，不能选为打卡瓶");return;}
+    S.activeBottleNo=no;save();renderAll();toast("已切换到「"+b.name+"」打卡");
+  }
+  function computeStreak(){
+    var t=todayKey(),cursor=S.records[t]?t:addDays(t,-1),n=0;
+    while(S.records[cursor]){n++;cursor=addDays(cursor,-1);}
+    return n;
+  }
+  function monthRate(){
+    var now=new Date(),y=now.getFullYear(),m=now.getMonth()+1;
+    var prefix=y+"-"+String(m).padStart(2,"0")+"-",passed=now.getDate();
+    var taken=Object.keys(S.records).filter(function(k){return k.indexOf(prefix)===0;}).length;
+    return Math.min(100,Math.round(taken/passed*100));
+  }
+  function colorOf(no){return COLORS[(no-1)%COLORS.length];}
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+
+  function $(id){return document.getElementById(id);}
+  function toast(msg){var el=$("toast");el.textContent=msg;el.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(function(){el.classList.remove("show");},2400);}
+
+  function renderToday(){
+    var t=todayKey(),now=new Date();
+    $("todayDate").textContent=now.getFullYear()+"年"+prettyDate(t)+" "+weekName(t);
+    var done=!!S.records[t],b=activeBottle(),noBottles=!S.bottles.length;
+    var out=!b||b.finished||b.remaining<S.settings.dose;
+    var btn=$("checkinBtn");
+    btn.classList.remove("done","empty","pop");void btn.offsetWidth;
+    var ub=$("usingBottle");
+    if(b){ub.style.display="inline-flex";$("usingText").textContent="当前使用 · "+b.name;ub.querySelector(".d").style.background=colorOf(b.no);}
+    else ub.style.display="none";
+    if(done){
+      btn.classList.add("done","pop");
+      $("pillIcon").innerHTML='<path d="M20 6L9 17l-5-5"/>';
+      $("pillBig").textContent="今日已完成";$("pillSub").textContent="坚持得很好 ✓";
+      var rb=bottleOf(S,S.records[t].bottle);
+      $("todayStatus").innerHTML="已服用 <b>"+S.records[t].dose+"</b> 颗 · "+(rb?escapeHtml(rb.name):"第"+S.records[t].bottle+"瓶")+" · 点击可撤销";
+    }else if(noBottles||out){
+      btn.classList.add("empty");
+      $("pillIcon").innerHTML='<path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="10"/>';
+      $("pillBig").textContent=noBottles?"还没有药瓶":"当前瓶不可用";$("pillSub").textContent=noBottles?"去开一瓶":"选瓶或开新瓶";
+      $("todayStatus").textContent=noBottles?"点击下方「开一瓶新的」开始吧":(b&&b.finished?"当前瓶已吃完，请在下方选一瓶或开新瓶":"余量不足，请选别的瓶或开新瓶");
+    }else{
+      $("pillIcon").innerHTML='<path d="M10.5 20.5l-7-7a4.95 4.95 0 017-7l7 7a4.95 4.95 0 01-7 7z"/><path d="M8.5 8.5l7 7"/>';
+      $("pillBig").textContent="点击打卡";$("pillSub").textContent="今日服药 "+S.settings.dose+" 颗";
+      $("todayStatus").innerHTML="今日待服药 · 将使用 <b>"+escapeHtml(b.name)+"</b>";
+    }
+  }
+  function renderStats(){
+    $("statStreak").textContent=computeStreak();
+    $("statTotal").textContent=Object.keys(S.records).length;
+    $("statRate").textContent=monthRate()+"%";
+  }
+  function renderBottles(){
+    var activeCount=S.bottles.filter(function(b){return !b.finished;}).length;
+    $("bottleCount").textContent="· 共 "+S.bottles.length+" 瓶，进行中 "+activeCount+" 瓶";
+    $("addCap").textContent=S.settings.capacity;
+    if(!S.bottles.length){$("bottleList").innerHTML='<div class="card empty">还没有药瓶，点下方按钮开第一瓶 🌱</div>';return;}
+    var html="";
+    var sorted=S.bottles.slice().sort(function(a,b){return (a.finished?1:0)-(b.finished?1:0)||b.no-a.no;});
+    sorted.forEach(function(b){
+      var isActive=(b.no===S.activeBottleNo&&!b.finished);
+      var pct=b.capacity>0?Math.max(0,Math.min(100,Math.round(b.remaining/b.capacity*100))):0;
+      var col=colorOf(b.no);
+      var cls="card bcard"+(isActive?" active":"")+(b.finished?" finished":"");
+      var badge=b.finished?'<span class="badge out">已吃完</span>':(isActive?'<span class="badge using">✓ 打卡中</span>':'');
+      var est=b.finished?"已吃完 "+prettyDate(b.finished):(b.remaining<=0?"余量为 0":"预计 "+prettyDate(addDays(todayKey(),Math.ceil(b.remaining/S.settings.dose)-1))+" 吃完");
+      var ops=!b.finished
+        ?(isActive?'<button class="mini-btn" data-edit="'+b.no+'">编辑</button>':'<button class="mini-btn primary" data-select="'+b.no+'">设为当前</button><button class="mini-btn" data-edit="'+b.no+'">编辑</button>')
+        :'<button class="mini-btn del" data-del="'+b.no+'">移除</button>';
+      var lowCls=b.finished?"out":(b.remaining<=S.settings.lowThreshold?"low":"");
+      html+='<div class="'+cls+'" data-card="'+b.no+'">'+
+        '<div class="bcard-head"><div class="bcard-id">'+
+          '<span class="bdot" style="background:'+col+'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.5 20.5l-7-7a4.95 4.95 0 017-7l7 7a4.95 4.95 0 01-7 7z"/><path d="M8.5 8.5l7 7"/></svg></span>'+
+          '<div><div class="bname">'+escapeHtml(b.name)+' '+badge+'</div><div class="bsub">开瓶 '+prettyDate(b.start)+'</div></div></div>'+
+          '<div class="bcard-count">'+b.remaining+'<small> / '+b.capacity+' 颗</small></div></div>'+
+        '<div class="bprog '+lowCls+'"><i style="width:'+pct+'%;background:'+col+'"></i></div>'+
+        '<div class="bcard-foot"><span class="est">'+est+'</span><div class="bcard-ops">'+ops+'</div></div></div>';
+    });
+    $("bottleList").innerHTML=html;
+    $("bottleList").querySelectorAll("[data-select]").forEach(function(el){el.addEventListener("click",function(e){e.stopPropagation();selectBottle(+el.getAttribute("data-select"));});});
+    $("bottleList").querySelectorAll("[data-edit]").forEach(function(el){el.addEventListener("click",function(e){e.stopPropagation();openBottleSheet(+el.getAttribute("data-edit"));});});
+    $("bottleList").querySelectorAll("[data-del]").forEach(function(el){el.addEventListener("click",function(e){
+      e.stopPropagation();var no=+el.getAttribute("data-del"),bb=bottleOf(S,no);
+      if(!confirm("移除「"+(bb?bb.name:"第"+no+"瓶")+"」的记录吗？历史打卡会保留。"))return;
+      S.bottles=S.bottles.filter(function(b){return b.no!==no;});
+      if(S.activeBottleNo===no){var a=activeBottleOf(S);S.activeBottleNo=a?a.no:(S.bottles.length?S.bottles[S.bottles.length-1].no:0);}
+      save();renderAll();toast("已移除药瓶");
+    });});
+    $("bottleList").querySelectorAll("[data-card]").forEach(function(card){card.addEventListener("click",function(){
+      var no=+card.getAttribute("data-card"),b=bottleOf(S,no);
+      if(b&&!b.finished&&no!==S.activeBottleNo)selectBottle(no);
+    });});
+  }
+
+  var calCursor=null;
+  function renderCalendar(){
+    if(!calCursor){var n=new Date();calCursor={y:n.getFullYear(),m:n.getMonth()};}
+    var y=calCursor.y,m=calCursor.m;
+    $("calMonth").textContent=y+"年 "+(m+1)+"月";
+    var first=new Date(y,m,1),startIdx=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),html="",t=todayKey();
+    for(var i=0;i<startIdx;i++)html+='<div class="cell blank"></div>';
+    for(var d=1;d<=days;d++){
+      var key=y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+      var rec=S.records[key],cls="cell";
+      if(rec)cls+=" taken"+(rec.makeup?" makeup":"");
+      if(key===t)cls+=" today";
+      if(key>t)cls+=" future";
+      html+='<div class="'+cls+'" title="'+key+(rec?" 已服药":"")+'">'+d+'</div>';
+    }
+    $("calGrid").innerHTML=html;
+  }
+  function renderHistory(){
+    var keys=Object.keys(S.records).sort().reverse().slice(0,12);
+    if(!keys.length){$("historyList").innerHTML='<div class="empty">还没有服药记录，点击上方药丸开始第一天吧 🌱</div>';return;}
+    var html="";
+    keys.forEach(function(k){
+      var r=S.records[k],b=bottleOf(S,r.bottle);
+      html+='<div class="row"><div class="row-l">'+
+        '<div class="row-ico'+(r.makeup?" makeup":"")+'">'+(r.makeup
+          ?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'
+          :'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>')+'</div>'+
+        '<div><div class="row-t">'+prettyDate(k)+' <span style="font-weight:400;color:var(--ink-3)">'+weekName(k)+'</span></div>'+
+        '<div class="row-s">'+(b?escapeHtml(b.name):"第 "+r.bottle+" 瓶")+' · '+r.dose+' 颗'+(r.makeup?" · 补打卡":"")+'</div></div></div>'+
+        '<button class="row-tag" data-del="'+k+'">撤销</button></div>';
+    });
+    $("historyList").innerHTML=html;
+    $("historyList").querySelectorAll("[data-del]").forEach(function(btn){btn.addEventListener("click",function(){
+      var k=btn.getAttribute("data-del");if(confirm("确定撤销 "+prettyDate(k)+" 的服药记录吗？"))undoCheckin(k);
+    });});
+  }
+  function renderAll(){renderToday();renderStats();renderBottles();renderCalendar();renderHistory();}
+
+  var editingNo=null;
+  function openBottleSheet(no){
+    var b=bottleOf(S,no);if(!b)return;
+    editingNo=no;
+    $("bottleSheetTitle").textContent="编辑「"+b.name+"」";
+    $("bottleName").value=b.name;$("bottleCap").value=b.capacity;$("bottleRem").value=b.remaining;
+    openSheet("bottleOverlay");
+  }
+  function openSheet(id){$(id).classList.add("show");}
+  function closeSheet(id){$(id).classList.remove("show");}
+
+  $("checkinBtn").addEventListener("click",function(){
+    var t=todayKey();
+    if(S.records[t]){if(confirm("今日已服药，确定要撤销吗？"))undoCheckin(t);}
+    else checkin(t,false);
+  });
+  $("addBottleTop").addEventListener("click",newBottle);
+  $("addBottleBottom").addEventListener("click",newBottle);
+  $("prevMonth").addEventListener("click",function(){calCursor.m--;if(calCursor.m<0){calCursor.m=11;calCursor.y--;}renderCalendar();});
+  $("nextMonth").addEventListener("click",function(){calCursor.m++;if(calCursor.m>11){calCursor.m=0;calCursor.y++;}renderCalendar();});
+  $("calGrid").addEventListener("click",function(e){
+    var c=e.target.closest(".cell");if(!c||c.classList.contains("blank"))return;
+    var day=c.textContent.trim();if(!/^\d+$/.test(day))return;
+    var key=calCursor.y+"-"+String(calCursor.m+1).padStart(2,"0")+"-"+String(+day).padStart(2,"0");
+    if(key>todayKey())return;
+    if(S.records[key]){if(confirm(prettyDate(key)+" 已服药，撤销该记录吗？"))undoCheckin(key);}
+    else{if(confirm("为 "+prettyDate(key)+" 补打卡吗？（将扣减当前瓶）"))checkin(key,true);}
+  });
+
+  $("settingsBtn").addEventListener("click",function(){
+    $("setCapacity").value=S.settings.capacity;$("setDose").value=S.settings.dose;$("setLow").value=S.settings.lowThreshold;
+    openSheet("settingsOverlay");
+  });
+  $("closeSettings").addEventListener("click",function(){closeSheet("settingsOverlay");});
+  $("saveSettings").addEventListener("click",function(){
+    var cap=parseInt($("setCapacity").value,10),dose=parseInt($("setDose").value,10),low=parseInt($("setLow").value,10);
+    if(!(cap>=1&&cap<=999)){toast("每瓶颗数需在 1-999 之间");return;}
+    if(!(dose>=1&&dose<=20)){toast("每日剂量需在 1-20 之间");return;}
+    if(!(low>=0&&low<=999)){toast("提醒阈值输入无效");return;}
+    S.settings={capacity:cap,dose:dose,lowThreshold:low};save();renderAll();toast("设置已保存");closeSheet("settingsOverlay");
+  });
+
+  $("cancelBottle").addEventListener("click",function(){closeSheet("bottleOverlay");});
+  $("saveBottle").addEventListener("click",function(){
+    var b=bottleOf(S,editingNo);if(!b)return;
+    var name=$("bottleName").value.trim(),cap=parseInt($("bottleCap").value,10),rem=parseInt($("bottleRem").value,10);
+    if(!name){toast("请输入药瓶名称");return;}
+    if(!(cap>=1&&cap<=999)){toast("容量需在 1-999 之间");return;}
+    if(!(rem>=0&&rem<=999)){toast("剩余颗数输入无效");return;}
+    b.name=name;b.capacity=cap;b.remaining=rem;
+    if(rem<=0){b.finished=todayKey();if(S.activeBottleNo===b.no){var a=activeBottleOf(S);S.activeBottleNo=a?a.no:b.no;}}
+    else b.finished=null;
+    save();renderAll();closeSheet("bottleOverlay");toast("药瓶已更新");
+  });
+
+  $("makeupBtn").addEventListener("click",function(){
+    $("makeupDate").value=addDays(todayKey(),-1);$("makeupDate").max=todayKey();openSheet("makeupOverlay");
+  });
+  $("cancelMakeup").addEventListener("click",function(){closeSheet("makeupOverlay");});
+  $("confirmMakeup").addEventListener("click",function(){
+    var v=$("makeupDate").value;if(!v){toast("请选择日期");return;}
+    if(v>todayKey()){toast("不能给未来日期补打卡");return;}
+    if(checkin(v,true))closeSheet("makeupOverlay");
+  });
+
+  $("exportBtn").addEventListener("click",function(){
+    var blob=new Blob([JSON.stringify(S,null,2)],{type:"application/json"});
+    var url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download="服药记录-"+todayKey()+".json";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);toast("备份已导出");
+  });
+  $("importBtn").addEventListener("click",function(){$("importFile").click();});
+  $("importFile").addEventListener("change",function(e){
+    var f=e.target.files[0];if(!f)return;
+    var reader=new FileReader();
+    reader.onload=function(){
+      try{
+        var data=JSON.parse(reader.result);
+        if(!data.settings||!Array.isArray(data.bottles)||!data.records)throw new Error("格式不符");
+        if(!confirm("导入将覆盖当前所有数据，确定继续吗？"))return;
+        S=data;
+        if(!S.activeBottleNo){var a=activeBottleOf(S);S.activeBottleNo=a?a.no:(S.bottles.length?S.bottles[S.bottles.length-1].no:1);}
+        save();renderAll();closeSheet("settingsOverlay");toast("数据已导入");
+      }catch(err){toast("导入失败：文件格式不正确");}
+    };
+    reader.readAsText(f);e.target.value="";
+  });
+  $("resetBtn").addEventListener("click",function(){
+    if(!confirm("确定清空所有服药记录和药瓶吗？此操作不可恢复。"))return;
+    if(!confirm("再次确认：真的要删除全部数据吗？"))return;
+    S=defaultState();save();renderAll();closeSheet("settingsOverlay");toast("数据已清空");
+  });
+  document.querySelectorAll(".overlay").forEach(function(ov){ov.addEventListener("click",function(e){if(e.target===ov)ov.classList.remove("show");});});
+
+  var deferredPrompt=null;
+  window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e;$("installBar").classList.add("show");});
+  $("installAccept").addEventListener("click",async function(){
+    $("installBar").classList.remove("show");
+    if(!deferredPrompt){openSheet("settingsOverlay");toast("请在浏览器菜单中选择「添加到主屏幕」");return;}
+    deferredPrompt.prompt();
+    try{var r=await deferredPrompt.userChoice;if(r.outcome==="accepted")toast("正在安装到桌面…");}catch(err){}
+    deferredPrompt=null;
+  });
+  $("installDismiss").addEventListener("click",function(){$("installBar").classList.remove("show");});
+  $("installBtn").addEventListener("click",function(){
+    if(deferredPrompt)$("installBar").classList.add("show");
+    else{openSheet("settingsOverlay");toast("iOS 请用 Safari：分享 → 添加到主屏幕");}
+  });
+  if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol)){
+    window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
+  }
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
